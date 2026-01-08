@@ -21,7 +21,7 @@ const TAKTIKAL_BASE_URL = 'https://api.taktikal.is';
 // =========================================================
 app.post('/api/goldMarket-login-ver', async (req, res) => {
     try {
-        const { phone } = req.body;
+        const { phone } = req.body; 
         console.log("------------------------------------------------");
         console.log("Incoming Login Request for:", phone);
 
@@ -30,7 +30,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
         // 1. Format Phone Number (Must be +354 for Iceland)
         // Removes spaces and ensures it starts with +354 if user typed "1234567"
         let cleanPhone = phone.toString().replace(/\D/g, ''); // Remove non-numbers
-        
+           
         // Safety check: Icelandic numbers are 7 digits.
         if (cleanPhone.length === 7) {
             cleanPhone = `+354${cleanPhone}`;
