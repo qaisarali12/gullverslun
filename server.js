@@ -1,8 +1,8 @@
-// server.js (FIXED SSL HANDSHAKE)
+// server.js (FINAL SSL FIX)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const https = require('https'); // Import HTTPS module
+const https = require('https'); // Import HTTPS
 const app = express();
 
 app.use(cors());
@@ -16,13 +16,12 @@ const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT';
 const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
 
 // =========================================================
-// 2. SSL FIX (THE MAGIC PART)
+// 2. SSL FIX (LEGACY MODE)
 // =========================================================
-// This agent forces Node.js to accept older encryption ciphers
-// which prevents the "SSL alert number 80" crash.
+// This tells Node.js to lower its security standards to match Taktikal
 const sslAgent = new https.Agent({
-    minVersion: 'TLSv1.2',
-    ciphers: 'DEFAULT:@SECLEVEL=1' 
+    minVersion: 'TLSv1', // Allow older TLS versions
+    ciphers: 'DEFAULT:@SECLEVEL=0' // Allow legacy ciphers
 });
 
 // =========================================================
@@ -36,7 +35,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
 
         if (!phone) return res.status(400).json({ error: "Phone missing" });
 
-        // Format Phone (+354)
+        // Format Phone
         let cleanPhone = phone.toString().replace(/\D/g, ''); 
         if (cleanPhone.length === 7) {
             cleanPhone = `+354${cleanPhone}`;
@@ -48,7 +47,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
 
         console.log("Sending to Taktikal:", cleanPhone);
 
-        // Call Taktikal with the SSL FIX (httpsAgent)
+        // Call Taktikal
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
             type: "sim", 
@@ -59,7 +58,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
                 'Content-Type': 'application/json',
                 'User-Agent': 'GoldMarket-Shopify/1.0'
             },
-            httpsAgent: sslAgent // <--- APPLYING THE FIX HERE
+            httpsAgent: sslAgent // <--- USING THE FIX
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -75,9 +74,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             console.error("Details:", error.response.data);
             return res.status(error.response.status).json(error.response.data);
         }
-        // Print detailed SSL error if it happens again
         if (error.code) console.error("Error Code:", error.code);
-        
         return res.status(500).json({ error: "Server Error" });
     }
 });
@@ -91,7 +88,7 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-            httpsAgent: sslAgent // <--- APPLYING THE FIX HERE TOO
+            httpsAgent: sslAgent
         });
 
         res.json(response.data); 
@@ -104,4 +101,7 @@ app.post('/api/check-auth-status', async (req, res) => {
 
 // START SERVER
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log("🔒 SSL Legacy Fix Applied (@SECLEVEL=0)");
+});
