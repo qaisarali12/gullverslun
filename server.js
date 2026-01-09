@@ -1,8 +1,9 @@
-// server.js (SLIM HANDSHAKE FIX)
+// server.js (THE "CRYPTO CONSTANTS" FIX)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const https = require('https');
+const crypto = require('crypto'); // We need this for the fix
 const app = express();
 
 app.use(cors());
@@ -16,16 +17,18 @@ const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT';
 const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
 
 // =========================================================
-// 2. THE "SLIM" SSL AGENT
+// 2. THE FIX: SYSTEM-LEVEL LEGACY FLAGS
 // =========================================================
 const secureAgent = new https.Agent({
-    servername: 'api.taktikal.is', // Required for routing
-    keepAlive: false, // Disable persistent connections (fixes some firewall blocks)
+    // Enable system flags for unsafe legacy renegotiation
+    // This allows Node to talk to servers that don't support RFC 5746
+    secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT | 
+                   crypto.constants.SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION,
     
-    // LIMIT CIPHERS: Send a tiny handshake packet
-    ciphers: 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384',
+    // Allow ALL ciphers (Brute force compatibility)
+    ciphers: 'ALL', 
     
-    minVersion: 'TLSv1.2', // Standard security
+    minVersion: 'TLSv1',
     rejectUnauthorized: false
 });
 
@@ -56,12 +59,10 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             auth: { username: COMPANY_KEY, password: API_KEY },
             headers: { 
                 'Content-Type': 'application/json',
-                // Mimic Postman (Tools often allowed through firewalls)
-                'User-Agent': 'PostmanRuntime/7.26.8', 
-                'Accept': '*/*',
-                'Connection': 'close'
+                // Mimic standard Axios to keep it simple
+                'User-Agent': 'axios/0.21.1'
             },
-            httpsAgent: secureAgent
+            httpsAgent: secureAgent // <--- APPLY THE CRYPTO FIX
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -90,7 +91,6 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-            headers: { 'User-Agent': 'PostmanRuntime/7.26.8' },
             httpsAgent: secureAgent
         });
 
