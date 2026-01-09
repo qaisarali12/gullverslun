@@ -1,8 +1,7 @@
-// server.js (NODE 16 + AGGRESSIVE COMPATIBILITY MODE)
+// server.js (CORRECT URL + NODE 16)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const https = require('https');
 const app = express();
 
 app.use(cors());
@@ -13,22 +12,12 @@ app.use(express.json());
 // =========================================================
 const COMPANY_KEY = 'aa7a9325f1a0'; 
 const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT'; 
-const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
+
+// ✅ FIX: Use the documented Production URL
+const TAKTIKAL_BASE_URL = 'https://onboarding.taktikal.is'; 
 
 // =========================================================
-// 2. THE FIX: FORCE LEGACY SSL & BROWSER IDENTITY
-// =========================================================
-const sslAgent = new https.Agent({
-    // Allow the oldest possible encryption standards
-    ciphers: 'DEFAULT:@SECLEVEL=0',
-    // Allow older TLS versions
-    minVersion: 'TLSv1',
-    // Disable strict SSL certificate checks (Last Resort)
-    rejectUnauthorized: false 
-});
-
-// =========================================================
-// 3. ROUTE: START LOGIN
+// 2. ROUTE: START LOGIN
 // =========================================================
 app.post('/api/goldMarket-login-ver', async (req, res) => {
     try {
@@ -46,6 +35,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
 
         console.log("Sending to Taktikal:", cleanPhone);
 
+        // Call Taktikal (Correct URL)
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
             type: "sim", 
@@ -54,10 +44,9 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             auth: { username: COMPANY_KEY, password: API_KEY },
             headers: { 
                 'Content-Type': 'application/json',
-                // FAKE BROWSER UA to bypass Firewalls
+                // Keep the browser masquerade just in case
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            },
-            httpsAgent: sslAgent // <--- Force the legacy settings
+            }
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -78,7 +67,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
 });
 
 // =========================================================
-// 4. ROUTE: CHECK STATUS
+// 3. ROUTE: CHECK STATUS
 // =========================================================
 app.post('/api/check-auth-status', async (req, res) => {
     try {
@@ -86,7 +75,9 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-            httpsAgent: sslAgent
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
         });
 
         res.json(response.data); 
