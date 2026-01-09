@@ -1,4 +1,4 @@
-// server.js (NODE 16 + SNI + IPv4 FIX)
+// server.js (SANDBOX ENVIRONMENT)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -13,20 +13,19 @@ app.use(express.json());
 // =========================================================
 const COMPANY_KEY = 'aa7a9325f1a0'; 
 const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT'; 
-const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
+
+// ✅ FIX: Use the SANDBOX URL (eval.taktikal.is)
+// If this fails, try: 'https://onboarding-dev.taktikal.is'
+const TAKTIKAL_BASE_URL = 'https://eval.taktikal.is'; 
 
 // =========================================================
-// 2. THE SNI & IPv4 FIX
+// 2. SSL AGENT (Standard Node 16)
 // =========================================================
-const secureAgent = new https.Agent({
-    // 1. Force SNI (Crucial for strict firewalls)
-    servername: 'api.taktikal.is',
-    // 2. Force IPv4 (Fixes common cloud routing issues)
-    family: 4,
-    // 3. Allow Legacy/Weak Ciphers (Just in case)
-    ciphers: 'DEFAULT:@SECLEVEL=0',
-    minVersion: 'TLSv1',
-    rejectUnauthorized: false 
+// Since 'eval' is a modern server, we don't need aggressive SSL hacks.
+// We just use a standard agent to ensure it sends the SNI (Server Name).
+const httpsAgent = new https.Agent({
+    servername: 'eval.taktikal.is', // Crucial for cloud firewalls
+    keepAlive: true
 });
 
 // =========================================================
@@ -46,7 +45,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
         else if (!cleanPhone.startsWith('354')) cleanPhone = `+${cleanPhone}`;
         else cleanPhone = `+${cleanPhone}`;
 
-        console.log("Sending to Taktikal:", cleanPhone);
+        console.log("Sending to Taktikal Sandbox:", cleanPhone);
 
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
@@ -56,9 +55,9 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             auth: { username: COMPANY_KEY, password: API_KEY },
             headers: { 
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'GoldMarket-Test/1.0'
             },
-            httpsAgent: secureAgent // <--- APPLY THE SNI FIX
+            httpsAgent: httpsAgent
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -87,7 +86,7 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-            httpsAgent: secureAgent
+            httpsAgent: httpsAgent
         });
 
         res.json(response.data); 
