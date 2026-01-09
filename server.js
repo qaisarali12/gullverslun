@@ -1,23 +1,32 @@
-// server.js (THE NUCLEAR OPTION)
-
-// 1. DISABLE SSL VERIFICATION GLOBALLY (Do this before anything else)
-// This forces Node to stop acting "smart" and accept any connection.
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
+// server.js (FORCE IPv4 ONLY)
+// 1. GLOBAL IPv4 FORCE (Crucial for Render)
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first'); // Prefer IPv4
 
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const https = require('https');
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
 // =========================================================
-// 2. CONFIGURATION
+// 1. CONFIGURATION
 // =========================================================
 const COMPANY_KEY = 'aa7a9325f1a0'; 
 const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT'; 
 const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
+
+// =========================================================
+// 2. IPv4 AGENT
+// =========================================================
+const ipv4Agent = new https.Agent({
+    family: 4, // <--- THIS FORCES IPv4 CONNECTION
+    keepAlive: true,
+    rejectUnauthorized: false // Keep this off for now to be safe
+});
 
 // =========================================================
 // 3. ROUTE: START LOGIN
@@ -36,9 +45,8 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
         else if (!cleanPhone.startsWith('354')) cleanPhone = `+${cleanPhone}`;
         else cleanPhone = `+${cleanPhone}`;
 
-        console.log("Sending to Taktikal:", cleanPhone);
+        console.log("Sending to Taktikal (IPv4):", cleanPhone);
 
-        // Standard Axios request (The global flag above handles the security)
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
             type: "sim", 
@@ -47,9 +55,9 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             auth: { username: COMPANY_KEY, password: API_KEY },
             headers: { 
                 'Content-Type': 'application/json',
-                // Mimic a standard Java connection (often whitelisted)
-                'User-Agent': 'Java/1.8.0_291'
-            }
+                'User-Agent': 'GoldMarket/1.0'
+            },
+            httpsAgent: ipv4Agent // <--- USE IPv4 AGENT
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -78,7 +86,7 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-             headers: { 'User-Agent': 'Java/1.8.0_291' }
+            httpsAgent: ipv4Agent
         });
 
         res.json(response.data); 
