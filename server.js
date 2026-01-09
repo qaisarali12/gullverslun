@@ -14,7 +14,7 @@ const COMPANY_KEY = 'aa7a9325f1a0';
 const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT'; 
 
 // ✅ FIX: Use the documented Production URL
-const TAKTIKAL_BASE_URL = 'https://onboarding.taktikal.is'; 
+const TAKTIKAL_BASE_URL = 'https://api.taktikal.is';
 
 // =========================================================
 // 2. ROUTE: START LOGIN
