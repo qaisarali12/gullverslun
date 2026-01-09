@@ -1,4 +1,4 @@
-// server.js (NODE 16 + FORCED LEGACY SSL)
+// server.js (NODE 16 + SNI + IPv4 FIX)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -16,13 +16,17 @@ const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT';
 const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
 
 // =========================================================
-// 2. THE SSL FIX
+// 2. THE SNI & IPv4 FIX
 // =========================================================
-// Force Node 16 to accept ancient encryption (TLS 1.0)
-const legacyAgent = new https.Agent({
+const secureAgent = new https.Agent({
+    // 1. Force SNI (Crucial for strict firewalls)
+    servername: 'api.taktikal.is',
+    // 2. Force IPv4 (Fixes common cloud routing issues)
+    family: 4,
+    // 3. Allow Legacy/Weak Ciphers (Just in case)
     ciphers: 'DEFAULT:@SECLEVEL=0',
     minVersion: 'TLSv1',
-    rejectUnauthorized: false // Ignore strict certificate checks
+    rejectUnauthorized: false 
 });
 
 // =========================================================
@@ -44,7 +48,6 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
 
         console.log("Sending to Taktikal:", cleanPhone);
 
-        // Call Taktikal with Legacy Agent
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
             type: "sim", 
@@ -53,9 +56,9 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             auth: { username: COMPANY_KEY, password: API_KEY },
             headers: { 
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
             },
-            httpsAgent: legacyAgent // <--- CRITICAL FIX
+            httpsAgent: secureAgent // <--- APPLY THE SNI FIX
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -84,7 +87,7 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-            httpsAgent: legacyAgent
+            httpsAgent: secureAgent
         });
 
         res.json(response.data); 
