@@ -1,4 +1,4 @@
-// server.js (LEGACY CIPHER SUITE FIX)
+// server.js (MUSEUM MODE: TLS 1.0 ONLY)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -17,37 +17,23 @@ const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT';
 const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
 
 // =========================================================
-// 2. THE LEGACY CIPHER AGENT
+// 2. THE MUSEUM AGENT (TLS 1.0 ONLY)
 // =========================================================
-const legacyAgent = new https.Agent({
-    // 1. Force the server name (SNI)
+const museumAgent = new https.Agent({
+    // 1. FORCE TLS 1.0 (Ancient Standard)
+    minVersion: 'TLSv1',
+    maxVersion: 'TLSv1', // Do NOT allow TLS 1.2 or 1.3
+    
+    // 2. FORCE LEGACY CIPHERS
+    ciphers: 'DEFAULT:@SECLEVEL=0',
+
+    // 3. FORCE SNI
     servername: 'api.taktikal.is',
 
-    // 2. FORCE LEGACY CIPHERS (The Magic List)
-    // This forces Node to speak the "old language" expected by legacy firewalls.
-    ciphers: [
-        "ECDHE-RSA-AES128-GCM-SHA256",
-        "ECDHE-RSA-AES256-GCM-SHA384",
-        "ECDHE-RSA-AES128-SHA256",
-        "ECDHE-RSA-AES256-SHA384",
-        "AES128-GCM-SHA256",
-        "AES256-GCM-SHA384",
-        "AES128-SHA256",
-        "AES256-SHA256",
-        "AES128-SHA",
-        "AES256-SHA",
-        "DES-CBC3-SHA" // Very old cipher, often the fallback for old systems
-    ].join(':'),
-
-    // 3. System Flags for Legacy Support
+    // 4. LEGACY RENEGOTIATION
     secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT | 
                    crypto.constants.SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION,
 
-    // 4. Version Constraints
-    minVersion: 'TLSv1',
-    maxVersion: 'TLSv1.2', // Do not allow 1.3
-
-    keepAlive: true,
     rejectUnauthorized: false
 });
 
@@ -68,7 +54,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
         else if (!cleanPhone.startsWith('354')) cleanPhone = `+${cleanPhone}`;
         else cleanPhone = `+${cleanPhone}`;
 
-        console.log("Sending to Taktikal (Legacy Ciphers):", cleanPhone);
+        console.log("Sending to Taktikal (TLS 1.0 Only):", cleanPhone);
 
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
@@ -78,10 +64,9 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             auth: { username: COMPANY_KEY, password: API_KEY },
             headers: { 
                 'Content-Type': 'application/json',
-                // Pretend to be an older browser
-                'User-Agent': 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)'
+                'User-Agent': 'Java/1.6.0_26' // Pretend to be ancient Java 6
             },
-            httpsAgent: legacyAgent
+            httpsAgent: museumAgent
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -110,7 +95,7 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-            httpsAgent: legacyAgent
+            httpsAgent: museumAgent
         });
 
         res.json(response.data); 
