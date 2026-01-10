@@ -1,9 +1,9 @@
-// server.js (STRICT TLS 1.2 - THE GOLDILOCKS FIX)
+// server.js (FINAL – PRODUCTION SAFE)
+
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const https = require('https');
-const crypto = require('crypto');
+
 const app = express();
 
 app.use(cors());
@@ -12,100 +12,110 @@ app.use(express.json());
 // =========================================================
 // 1. CONFIGURATION
 // =========================================================
-const COMPANY_KEY = 'aa7a9325f1a0'; 
-const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT'; 
-const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
+const COMPANY_KEY = process.env.COMPANY_KEY || 'aa7a9325f1a0';
+const API_KEY = process.env.API_KEY || 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT';
+const TAKTIKAL_BASE_URL = 'https://api.taktikal.is';
 
 // =========================================================
-// 2. THE "STRICT TLS 1.2" AGENT
-// =========================================================
-const secureAgent = new https.Agent({
-    // 1. Force the exact version (No 1.0, No 1.3)
-    minVersion: 'TLSv1.2',
-    maxVersion: 'TLSv1.2',
-
-    // 2. Kill TLS 1.3 explicitly (Crucial for old firewalls)
-    secureOptions: crypto.constants.SSL_OP_NO_TLSv1_3,
-
-    // 3. Force SNI
-    servername: 'api.taktikal.is',
-
-    // 4. Use Standard Modern Ciphers (Not Legacy, Not Future)
-    ciphers: 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384',
-
-    keepAlive: true,
-    rejectUnauthorized: false
-});
-
-// =========================================================
-// 3. ROUTE: START LOGIN
+// 2. START LOGIN ROUTE
 // =========================================================
 app.post('/api/goldMarket-login-ver', async (req, res) => {
-    try {
-        const { phone } = req.body;
-        console.log("------------------------------------------------");
-        console.log("Incoming Login Request for:", phone);
+  try {
+    const { phone } = req.body;
 
-        if (!phone) return res.status(400).json({ error: "Phone missing" });
+    console.log('----------------------------------------');
+    console.log('Incoming Login Request:', phone);
 
-        // Format Phone
-        let cleanPhone = phone.toString().replace(/\D/g, ''); 
-        if (cleanPhone.length === 7) cleanPhone = `+354${cleanPhone}`;
-        else if (!cleanPhone.startsWith('354')) cleanPhone = `+${cleanPhone}`;
-        else cleanPhone = `+${cleanPhone}`;
-
-        console.log("Sending to Taktikal (Strict TLS 1.2):", cleanPhone);
-
-        const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
-            phoneNumber: cleanPhone,
-            type: "sim", 
-            message: "Log in to Gold Market"
-        }, {
-            auth: { username: COMPANY_KEY, password: API_KEY },
-            headers: { 
-                'Content-Type': 'application/json',
-                // Mimic a standard Windows Browser
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-            },
-            httpsAgent: secureAgent
-        });
-
-        console.log("✅ Taktikal Success:", response.data);
-
-        res.json({ 
-            message: "Auth Started", 
-            authRequestId: response.data.authRequestId 
-        });
-
-    } catch (error) {
-        console.error("❌ Taktikal Error:", error.message);
-        if (error.response) {
-            console.error("Details:", error.response.data);
-            return res.status(error.response.status).json(error.response.data);
-        }
-        return res.status(500).json({ error: "Server Error" });
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone missing' });
     }
+
+    // Normalize phone number
+    let cleanPhone = phone.toString().replace(/\D/g, '');
+
+    if (cleanPhone.length === 7) {
+      cleanPhone = `+354${cleanPhone}`;
+    } else if (!cleanPhone.startsWith('354')) {
+      cleanPhone = `+${cleanPhone}`;
+    } else {
+      cleanPhone = `+${cleanPhone}`;
+    }
+
+    console.log('Sending to Taktikal:', cleanPhone);
+
+    const response = await axios.post(
+      `${TAKTIKAL_BASE_URL}/api/auth/start`,
+      {
+        phoneNumber: cleanPhone,
+        type: 'sim',
+        message: 'Log in to Gold Market'
+      },
+      {
+        auth: {
+          username: COMPANY_KEY,
+          password: API_KEY
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('✅ Taktikal Success:', response.data);
+
+    res.json({
+      message: 'Auth Started',
+      authRequestId: response.data.authRequestId
+    });
+
+  } catch (error) {
+    console.error('❌ Taktikal Error:', error.message);
+
+    if (error.response) {
+      console.error('Details:', error.response.data);
+      return res
+        .status(error.response.status)
+        .json(error.response.data);
+    }
+
+    res.status(500).json({ error: 'Server Error' });
+  }
 });
 
 // =========================================================
-// 4. ROUTE: CHECK STATUS
+// 3. CHECK AUTH STATUS ROUTE
 // =========================================================
 app.post('/api/check-auth-status', async (req, res) => {
-    try {
-        const { authRequestId } = req.body;
-        
-        const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
-            auth: { username: COMPANY_KEY, password: API_KEY },
-            httpsAgent: secureAgent
-        });
+  try {
+    const { authRequestId } = req.body;
 
-        res.json(response.data); 
-
-    } catch (error) {
-        console.error("Polling Error:", error.message);
-        res.status(500).json({ error: "Polling Failed" });
+    if (!authRequestId) {
+      return res.status(400).json({ error: 'authRequestId missing' });
     }
+
+    const response = await axios.get(
+      `${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`,
+      {
+        auth: {
+          username: COMPANY_KEY,
+          password: API_KEY
+        }
+      }
+    );
+
+    res.json(response.data);
+
+  } catch (error) {
+    console.error('❌ Polling Error:', error.message);
+    res.status(500).json({ error: 'Polling Failed' });
+  }
 });
 
+// =========================================================
+// 4. START SERVER
+// =========================================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
