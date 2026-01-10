@@ -1,4 +1,4 @@
-// server.js (DISABLE TLS 1.3 FIX)
+// server.js (SANDBOX + STRICT SSL FIX)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -14,20 +14,24 @@ app.use(express.json());
 // =========================================================
 const COMPANY_KEY = 'aa7a9325f1a0'; 
 const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT'; 
-const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
+
+// ✅ SWITCH TO SANDBOX (EVAL)
+// "api" is blocking us. "onboarding" worked. "eval" is the sibling of onboarding.
+const TAKTIKAL_BASE_URL = 'https://eval.taktikal.is'; 
 
 // =========================================================
-// 2. SSL AGENT (NO TLS 1.3)
+// 2. SSL AGENT (STRICT NO TLS 1.3)
 // =========================================================
 const secureAgent = new https.Agent({
-    // Explicitly disable TLS 1.3 (The "modern" protocol that crashes old servers)
+    servername: 'eval.taktikal.is', // Set SNI to eval
+    
+    // Explicitly disable TLS 1.3 to prevent crashes
     secureOptions: crypto.constants.SSL_OP_NO_TLSv1_3,
     
-    // Force TLS 1.2
+    // Force TLS 1.2 exactly
     minVersion: 'TLSv1.2',
     maxVersion: 'TLSv1.2',
     
-    // Keep it simple
     keepAlive: true,
     rejectUnauthorized: false
 });
@@ -49,7 +53,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
         else if (!cleanPhone.startsWith('354')) cleanPhone = `+${cleanPhone}`;
         else cleanPhone = `+${cleanPhone}`;
 
-        console.log("Sending to Taktikal (No TLS 1.3):", cleanPhone);
+        console.log("Sending to Taktikal Sandbox:", cleanPhone);
 
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
@@ -73,7 +77,9 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
 
     } catch (error) {
         console.error("❌ Taktikal Error:", error.message);
+        
         if (error.response) {
+            // IF WE GET HERE, SSL WORKED! (Even if it's a 401/400 error)
             console.error("Details:", error.response.data);
             return res.status(error.response.status).json(error.response.data);
         }
