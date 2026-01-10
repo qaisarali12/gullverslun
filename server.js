@@ -1,4 +1,4 @@
-// server.js (MUSEUM MODE: TLS 1.0 ONLY)
+// server.js (STRICT TLS 1.2 - THE GOLDILOCKS FIX)
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -17,23 +17,23 @@ const API_KEY = 'api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT';
 const TAKTIKAL_BASE_URL = 'https://api.taktikal.is'; 
 
 // =========================================================
-// 2. THE MUSEUM AGENT (TLS 1.0 ONLY)
+// 2. THE "STRICT TLS 1.2" AGENT
 // =========================================================
-const museumAgent = new https.Agent({
-    // 1. FORCE TLS 1.0 (Ancient Standard)
-    minVersion: 'TLSv1',
-    maxVersion: 'TLSv1', // Do NOT allow TLS 1.2 or 1.3
-    
-    // 2. FORCE LEGACY CIPHERS
-    ciphers: 'DEFAULT:@SECLEVEL=0',
+const secureAgent = new https.Agent({
+    // 1. Force the exact version (No 1.0, No 1.3)
+    minVersion: 'TLSv1.2',
+    maxVersion: 'TLSv1.2',
 
-    // 3. FORCE SNI
+    // 2. Kill TLS 1.3 explicitly (Crucial for old firewalls)
+    secureOptions: crypto.constants.SSL_OP_NO_TLSv1_3,
+
+    // 3. Force SNI
     servername: 'api.taktikal.is',
 
-    // 4. LEGACY RENEGOTIATION
-    secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT | 
-                   crypto.constants.SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION,
+    // 4. Use Standard Modern Ciphers (Not Legacy, Not Future)
+    ciphers: 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:AES128-GCM-SHA256:AES256-GCM-SHA384',
 
+    keepAlive: true,
     rejectUnauthorized: false
 });
 
@@ -54,7 +54,7 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
         else if (!cleanPhone.startsWith('354')) cleanPhone = `+${cleanPhone}`;
         else cleanPhone = `+${cleanPhone}`;
 
-        console.log("Sending to Taktikal (TLS 1.0 Only):", cleanPhone);
+        console.log("Sending to Taktikal (Strict TLS 1.2):", cleanPhone);
 
         const response = await axios.post(`${TAKTIKAL_BASE_URL}/api/auth/start`, {
             phoneNumber: cleanPhone,
@@ -64,9 +64,10 @@ app.post('/api/goldMarket-login-ver', async (req, res) => {
             auth: { username: COMPANY_KEY, password: API_KEY },
             headers: { 
                 'Content-Type': 'application/json',
-                'User-Agent': 'Java/1.6.0_26' // Pretend to be ancient Java 6
+                // Mimic a standard Windows Browser
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
             },
-            httpsAgent: museumAgent
+            httpsAgent: secureAgent
         });
 
         console.log("✅ Taktikal Success:", response.data);
@@ -95,7 +96,7 @@ app.post('/api/check-auth-status', async (req, res) => {
         
         const response = await axios.get(`${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`, {
             auth: { username: COMPANY_KEY, password: API_KEY },
-            httpsAgent: museumAgent
+            httpsAgent: secureAgent
         });
 
         res.json(response.data); 
