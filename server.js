@@ -7,11 +7,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const COMPANY_KEY = process.env.COMPANY_KEY;
-const API_KEY = process.env.API_KEY;
+const COMPANY_KEY = "aa7a9325f1a0";
+const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT";
 
 // ✅ CORRECT AUTH HOST
-const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
+const TAKTIKAL_BASE_URL = "https://onboardingdev.taktikal.is";
 
 // =========================================================
 // START LOGIN
@@ -45,7 +45,13 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
         phoneNumber: cleanPhone,
         type: "sim",
         message: "Log in to Gold Market"
-      },
+        },
+      {
+        "PhoneNumber": cleanPhone,
+        "FlowKey": "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT",
+        "AuthenticationContextType": "Sim",
+        "IncludeVerificationCode": true
+        },
       {
         auth: {
           username: COMPANY_KEY,
