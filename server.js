@@ -33,7 +33,7 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
       cleanPhone = `+354${cleanPhone}`;
     } else if (!cleanPhone.startsWith("354")) {
       cleanPhone = `+${cleanPhone}`;
-    } else {
+    } else { 
       cleanPhone = `+${cleanPhone}`;
     }
 
@@ -41,11 +41,6 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 
     const response = await axios.post(
       `${TAKTIKAL_BASE_URL}/api/auth/start`,
-      {
-        phoneNumber: cleanPhone,
-        type: "sim",
-        message: "Log in to Gold Market"
-        },
       {
         "PhoneNumber": cleanPhone,
         "FlowKey": "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT",
@@ -60,7 +55,7 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
         headers: {
           "Content-Type": "application/json"
         }
-      }
+      } 
     );
 
     console.log("✅ Taktikal Success:", response.data);
