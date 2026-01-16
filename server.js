@@ -12,11 +12,10 @@ app.use(express.json());
 const COMPANY_KEY = "aa7a9325f1a0";
 const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
 
-// ✅ NEW: The Client's Real Flow Key
+// ✅ The Client's Real Flow Key
 const FLOW_KEY = "ad62cb968983"; 
 
-// ✅ PRODUCTION URL (For Real Login)
-// If this gives a 404, switch to 'https://onboarding.taktikal.is'
+// ✅ PRODUCTION URL 
 const TAKTIKAL_BASE_URL = "https://api.taktikal.is"; 
 
 // =========================================================
@@ -25,7 +24,6 @@ const TAKTIKAL_BASE_URL = "https://api.taktikal.is";
 app.post("/api/goldMarket-login-ver", async (req, res) => {
   try {
     const { phone } = req.body;
-    console.log("----------------------------------------");
     console.log("Incoming Login Request:", phone);
 
     if (!phone) return res.status(400).json({ error: "Phone missing" });
@@ -42,16 +40,16 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
       `${TAKTIKAL_BASE_URL}/api/auth/start`,
       {
         "PhoneNumber": cleanPhone,
-        "FlowKey": FLOW_KEY, // ✅ Using the real key now
+        "FlowKey": FLOW_KEY,
         "AuthenticationContextType": "Sim", 
         "IncludeVerificationCode": true
       },
       {
-        auth: {
-          username: COMPANY_KEY,
-          password: API_KEY
-        },
-        headers: { "Content-Type": "application/json" }
+        auth: { username: COMPANY_KEY, password: API_KEY },
+        headers: { 
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0" // Helps bypass firewalls
+        }
       } 
     );
 
@@ -89,6 +87,7 @@ app.post("/api/check-auth-status", async (req, res) => {
   }
 });
 
+// Glitch uses process.env.PORT automatically
 const listener = app.listen(process.env.PORT, () => {
   console.log('Your app is listening on port ' + listener.address().port);
 });
