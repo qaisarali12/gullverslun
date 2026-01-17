@@ -1,7 +1,8 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
-const https = require("https"); // <--- IMPORTANT: Ensure this is imported
+const https = require("https"); 
+const crypto = require("crypto"); // Added for security constants
 const app = express();
 
 app.use(cors());
@@ -16,7 +17,7 @@ const FLOW_KEY = "ad62cb968983";
 const TAKTIKAL_BASE_URL = "https://api.taktikal.is"; 
 
 // =========================================================
-// START LOGIN ROUTE (FIXED FOR SSL/EPROTO ERRORS)
+// START LOGIN ROUTE (Fixed for Node 18+ OpenSSL 3)
 // =========================================================
 app.post("/api/goldMarket-login-ver", async (req, res) => {
   try {
@@ -33,11 +34,14 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 
     console.log("Sending to Taktikal (Prod):", cleanPhone);
 
-    // 2. CREATE CUSTOM AGENT TO FIX SSL HANDSHAKE
+    // 2. CREATE LEGACY AGENT
+    // This solves the 'EPROTO' / 'SSL routines' error on Node 18+
     const agent = new https.Agent({
       rejectUnauthorized: true,
-      family: 4, // Forces IPv4 (Fixes EPROTO on Render)
-      servername: 'api.taktikal.is' // Explicitly sets SNI
+      family: 4,                  // Force IPv4
+      minVersion: "TLSv1.2",      // Force TLS 1.2 (Prevent 1.3 handshake issues)
+      maxVersion: "TLSv1.2",      // Lock it to 1.2
+      ciphers: "DEFAULT@SECLEVEL=0" // Allow legacy ciphers (The critical fix)
     });
 
     // 3. SEND REQUEST
@@ -50,10 +54,11 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
         "IncludeVerificationCode": true
       },
       {
-        httpsAgent: agent, // <--- Apply the fix here
+        httpsAgent: agent, 
         auth: { username: COMPANY_KEY, password: API_KEY },
         headers: { 
             "Content-Type": "application/json",
+             // Standard User Agent
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
       } 
@@ -69,9 +74,13 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
   } catch (error) {
     console.error("❌ Taktikal Error:", error.message);
     if (error.response) {
+      console.error("Response Status:", error.response.status);
       console.error("Response Data:", error.response.data);
       return res.status(error.response.status).json(error.response.data);
     }
+    // Print deep error details if available
+    if (error.cause) console.error("Cause:", error.cause);
+    
     res.status(500).json({ error: "Server Error: " + error.message });
   }
 });
