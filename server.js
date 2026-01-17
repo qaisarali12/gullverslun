@@ -1,6 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
+const https = require("https");
 const app = express();
 
 app.use(cors());
@@ -35,7 +36,10 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
     else cleanPhone = `+${cleanPhone}`;
 
     console.log("Sending to Taktikal (Prod):", cleanPhone);
-
+    const httpsAgent = new https.Agent({
+      rejectUnauthorized: true,
+      family: 4 // Forces IPv4
+    });
     const response = await axios.post(
       `${TAKTIKAL_BASE_URL}/api/auth/start`,
       {
@@ -48,7 +52,7 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
         auth: { username: COMPANY_KEY, password: API_KEY },
         headers: { 
             "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0" // Helps bypass firewalls
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
       } 
     );
