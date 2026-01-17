@@ -1,26 +1,22 @@
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
-const https = require("https");
+const https = require("https"); // <--- IMPORTANT: Ensure this is imported
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
 // =========================================================
-// 1. CONFIGURATION (Production)
+// CONFIGURATION
 // =========================================================
 const COMPANY_KEY = "aa7a9325f1a0";
 const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
-
-// ✅ The Client's Real Flow Key
 const FLOW_KEY = "ad62cb968983"; 
-
-// ✅ PRODUCTION URL 
 const TAKTIKAL_BASE_URL = "https://api.taktikal.is"; 
 
 // =========================================================
-// 2. START LOGIN ROUTE
+// START LOGIN ROUTE (FIXED FOR SSL/EPROTO ERRORS)
 // =========================================================
 app.post("/api/goldMarket-login-ver", async (req, res) => {
   try {
@@ -29,17 +25,22 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 
     if (!phone) return res.status(400).json({ error: "Phone missing" });
 
-    // Format phone number
+    // 1. Format phone number
     let cleanPhone = phone.toString().replace(/\D/g, "");
     if (cleanPhone.length === 7) cleanPhone = `+354${cleanPhone}`;
     else if (!cleanPhone.startsWith("354")) cleanPhone = `+${cleanPhone}`;
     else cleanPhone = `+${cleanPhone}`;
 
     console.log("Sending to Taktikal (Prod):", cleanPhone);
-    const httpsAgent = new https.Agent({
+
+    // 2. CREATE CUSTOM AGENT TO FIX SSL HANDSHAKE
+    const agent = new https.Agent({
       rejectUnauthorized: true,
-      family: 4 // Forces IPv4
+      family: 4, // Forces IPv4 (Fixes EPROTO on Render)
+      servername: 'api.taktikal.is' // Explicitly sets SNI
     });
+
+    // 3. SEND REQUEST
     const response = await axios.post(
       `${TAKTIKAL_BASE_URL}/api/auth/start`,
       {
@@ -49,6 +50,7 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
         "IncludeVerificationCode": true
       },
       {
+        httpsAgent: agent, // <--- Apply the fix here
         auth: { username: COMPANY_KEY, password: API_KEY },
         headers: { 
             "Content-Type": "application/json",
@@ -67,10 +69,10 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
   } catch (error) {
     console.error("❌ Taktikal Error:", error.message);
     if (error.response) {
-      console.error("Details:", error.response.data);
+      console.error("Response Data:", error.response.data);
       return res.status(error.response.status).json(error.response.data);
     }
-    res.status(500).json({ error: "Server Error" });
+    res.status(500).json({ error: "Server Error: " + error.message });
   }
 });
 
