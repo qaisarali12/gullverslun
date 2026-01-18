@@ -81,21 +81,47 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 // =========================================================
 // 3. CHECK STATUS ROUTE
 // =========================================================
+// =========================================================
+// 3. CHECK STATUS ROUTE (UPDATED)
+// =========================================================
 app.post("/api/check-auth-status", async (req, res) => {
   try {
     const { authRequestId } = req.body;
+    
+    // 1. RE-USE THE LEGACY SSL AGENT
+    // We need this here too, otherwise the status check might fail with the same SSL error later.
+    const agent = new https.Agent({
+      rejectUnauthorized: true,
+      family: 4,                  // Force IPv4
+      minVersion: "TLSv1.2",      // Force TLS 1.2
+      ciphers: "DEFAULT@SECLEVEL=0" // Allow legacy ciphers
+    });
+
+    // 2. SEND REQUEST TO THE CORRECT URL
+    // Ensure TAKTIKAL_BASE_URL is "https://onboarding.taktikal.is" at the top of your file
     const response = await axios.get(
       `${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`,
-      { auth: { username: COMPANY_KEY, password: API_KEY } }
+      { 
+        httpsAgent: agent, // <--- Apply the SSL fix here too
+        auth: { username: COMPANY_KEY, password: API_KEY },
+        headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      }
     );
+    
+    // Log the successful check so you can see the status change
+    console.log(`📡 Status Check (${authRequestId}):`, response.data.status);
+    
     res.json(response.data);
+
   } catch (error) {
     console.error("❌ Polling Error:", error.message);
+    if (error.response) {
+        console.error("Status:", error.response.status);
+        console.error("Data:", error.response.data);
+        return res.status(error.response.status).json(error.response.data);
+    }
     res.status(500).json({ error: "Polling Failed" });
   }
-});
-
-// Glitch uses process.env.PORT automatically
-const listener = app.listen(process.env.PORT, () => {
-  console.log('Your app is listening on port ' + listener.address().port);
 });
