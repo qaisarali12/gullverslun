@@ -6,7 +6,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
- 
+
 // ========================================================= 
 // 1. CONFIGURATION (Production)
 // =========================================================
@@ -14,7 +14,7 @@ const COMPANY_KEY = "aa7a9325f1a0";
 const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
 const FLOW_KEY = "ad62cb968983"; 
 
-// ✅ FIX 1: USE THE CORRECT PRODUCTION URL
+// ✅ CORRECT PRODUCTION URL
 const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is"; 
 
 // =========================================================
@@ -35,7 +35,7 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 
     console.log("Sending to Taktikal (Prod):", cleanPhone);
 
-    // ✅ FIX 2: Legacy SSL Agent (Kept safe for Node 18+)
+    // ✅ FIX: Legacy SSL Agent (Kept safe for Node 18+)
     const agent = new https.Agent({
       rejectUnauthorized: true,
       family: 4,                  // Force IPv4
@@ -81,15 +81,11 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 // =========================================================
 // 3. CHECK STATUS ROUTE
 // =========================================================
-// =========================================================
-// 3. CHECK STATUS ROUTE (UPDATED)
-// =========================================================
 app.post("/api/check-auth-status", async (req, res) => {
   try {
     const { authRequestId } = req.body;
     
     // 1. RE-USE THE LEGACY SSL AGENT
-    // We need this here too, otherwise the status check might fail with the same SSL error later.
     const agent = new https.Agent({
       rejectUnauthorized: true,
       family: 4,                  // Force IPv4
@@ -98,11 +94,10 @@ app.post("/api/check-auth-status", async (req, res) => {
     });
 
     // 2. SEND REQUEST TO THE CORRECT URL
-    // Ensure TAKTIKAL_BASE_URL is "https://onboarding.taktikal.is" at the top of your file
     const response = await axios.get(
       `${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`,
       { 
-        httpsAgent: agent, // <--- Apply the SSL fix here too
+        httpsAgent: agent, 
         auth: { username: COMPANY_KEY, password: API_KEY },
         headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -110,7 +105,6 @@ app.post("/api/check-auth-status", async (req, res) => {
       }
     );
     
-    // Log the successful check so you can see the status change
     console.log(`📡 Status Check (${authRequestId}):`, response.data.status);
     
     res.json(response.data);
@@ -124,4 +118,12 @@ app.post("/api/check-auth-status", async (req, res) => {
     }
     res.status(500).json({ error: "Polling Failed" });
   }
+});
+
+// =========================================================
+// 4. START THE SERVER (THIS WAS MISSING)
+// =========================================================
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
