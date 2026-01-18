@@ -105,7 +105,7 @@ app.post("/api/check-auth-status", async (req, res) => {
       }
     );
     
-    console.log(`📡 Status Check (${authRequestId}):`, response.data.status);
+    console.log("📡 FULL TAKTIKAL RESPONSE:", JSON.stringify(response.data, null, 2));
     
     res.json(response.data);
 
