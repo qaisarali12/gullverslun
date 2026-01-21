@@ -15,7 +15,7 @@ const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT";
 const FLOW_KEY = "ad62cb968983"; 
 
 // ✅ CORRECT PRODUCTION URL
-const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is"; 
+const TAKTIKAL_BASE_URL = "https://api.taktikal.is";
 
 // =========================================================
 // 2. START LOGIN ROUTE
