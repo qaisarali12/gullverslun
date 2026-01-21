@@ -20,6 +20,9 @@ const TAKTIKAL_BASE_URL = "https://api.taktikal.is";
 // =========================================================
 // 2. START LOGIN ROUTE
 // =========================================================
+// =========================================================
+// 2. START LOGIN ROUTE
+// =========================================================
 app.post("/api/goldMarket-login-ver", async (req, res) => {
   try {
     const { phone } = req.body;
@@ -35,12 +38,14 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 
     console.log("Sending to Taktikal (Prod):", cleanPhone);
 
-    // ✅ FIX: Legacy SSL Agent (Kept safe for Node 18+)
+    // ✅ THE MASTER FIX FOR SSL ERROR 80
+    // We combine IPv4 + Legacy Ciphers + SNI (Server Name)
     const agent = new https.Agent({
       rejectUnauthorized: true,
-      family: 4,                  // Force IPv4
-      minVersion: "TLSv1.2",      // Force TLS 1.2
-      ciphers: "DEFAULT@SECLEVEL=0" // Allow legacy ciphers
+      family: 4,                        // 1. Force IPv4
+      servername: 'api.taktikal.is',    // 2. Force SNI (Critical for Prod)
+      minVersion: "TLSv1.2",            // 3. Force TLS 1.2
+      ciphers: "DEFAULT@SECLEVEL=0"     // 4. Allow Legacy Ciphers
     });
 
     const response = await axios.post(
@@ -52,7 +57,7 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
         "IncludeVerificationCode": true
       },
       {
-        httpsAgent: agent,
+        httpsAgent: agent, // <--- Apply the Master Fix
         auth: { username: COMPANY_KEY, password: API_KEY },
         headers: { 
             "Content-Type": "application/json",
@@ -76,9 +81,7 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
     }
     res.status(500).json({ error: "Server Error: " + error.message });
   }
-});
-
-// =========================================================
+});// =========================================================
 // 3. CHECK STATUS ROUTE
 // =========================================================
 app.post("/api/check-auth-status", async (req, res) => {
