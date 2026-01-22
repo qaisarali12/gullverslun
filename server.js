@@ -14,12 +14,20 @@ const COMPANY_KEY = "aa7a9325f1a0";
 const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
 const FLOW_KEY = "ad62cb968983"; 
 
-// ✅ CORRECT PRODUCTION URL
-const TAKTIKAL_BASE_URL = "https://api.taktikal.is";
+// ✅ OFFICIAL PRODUCTION BASE URL
+const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
 
 // =========================================================
-// 2. START LOGIN ROUTE
+// 1.1 SHARED SSL AGENT (FIXES SSL ERROR 80)
 // =========================================================
+const taktikalAgent = new https.Agent({
+  rejectUnauthorized: true,
+  family: 4, // Force IPv4
+  servername: "onboarding.taktikal.is", // SNI
+  minVersion: "TLSv1.2",
+  ciphers: "DEFAULT@SECLEVEL=0"
+});
+
 // =========================================================
 // 2. START LOGIN ROUTE
 // =========================================================
@@ -30,43 +38,30 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 
     if (!phone) return res.status(400).json({ error: "Phone missing" });
 
-    // Format phone number
+    // Format Icelandic phone number
     let cleanPhone = phone.toString().replace(/\D/g, "");
     if (cleanPhone.length === 7) cleanPhone = `+354${cleanPhone}`;
     else if (!cleanPhone.startsWith("354")) cleanPhone = `+${cleanPhone}`;
     else cleanPhone = `+${cleanPhone}`;
 
-    console.log("Sending to Taktikal (Prod):", cleanPhone);
-
-    // ✅ THE MASTER FIX FOR SSL ERROR 80
-    // We combine IPv4 + Legacy Ciphers + SNI (Server Name)
-    const agent = new https.Agent({
-      rejectUnauthorized: true,
-      family: 4,                        // 1. Force IPv4
-      servername: 'api.taktikal.is',    // 2. Force SNI (Critical for Prod)
-      minVersion: "TLSv1.2",            // 3. Force TLS 1.2
-      ciphers: "DEFAULT@SECLEVEL=0"     // 4. Allow Legacy Ciphers
-    });
+    console.log("Sending to Taktikal:", cleanPhone);
 
     const response = await axios.post(
       `${TAKTIKAL_BASE_URL}/api/auth/start`,
       {
-        "PhoneNumber": cleanPhone,
-        "FlowKey": FLOW_KEY,
-        "AuthenticationContextType": "Sim", 
-        "IncludeVerificationCode": true
+        PhoneNumber: cleanPhone,
+        FlowKey: FLOW_KEY,
+        AuthenticationContextType: "Sim",
+        IncludeVerificationCode: true
       },
       {
-        httpsAgent: agent, // <--- Apply the Master Fix
+        httpsAgent: taktikalAgent,
         auth: { username: COMPANY_KEY, password: API_KEY },
-        headers: { 
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-      } 
+        headers: { "Content-Type": "application/json" }
+      }
     );
 
-    console.log("✅ Taktikal Success:", response.data);
+    console.log("✅ Taktikal Start Success:", response.data);
 
     res.json({
       message: "Auth Started",
@@ -74,57 +69,48 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Taktikal Error:", error.message);
+    console.error("❌ Taktikal Start Error:", error.message);
     if (error.response) {
-      console.error("Details:", error.response.data);
       return res.status(error.response.status).json(error.response.data);
     }
     res.status(500).json({ error: "Server Error: " + error.message });
   }
-});// =========================================================
-// 3. CHECK STATUS ROUTE
+});
+
+// =========================================================
+// 3. CHECK STATUS (POLL) ROUTE
 // =========================================================
 app.post("/api/check-auth-status", async (req, res) => {
   try {
     const { authRequestId } = req.body;
-    
-    // 1. RE-USE THE LEGACY SSL AGENT
-    const agent = new https.Agent({
-      rejectUnauthorized: true,
-      family: 4,                  // Force IPv4
-      minVersion: "TLSv1.2",      // Force TLS 1.2
-      ciphers: "DEFAULT@SECLEVEL=0" // Allow legacy ciphers
-    });
 
-    // 2. SEND REQUEST TO THE CORRECT URL
-    const response = await axios.get(
-      `${TAKTIKAL_BASE_URL}/api/auth/status/${authRequestId}`,
-      { 
-        httpsAgent: agent, 
-        auth: { username: COMPANY_KEY, password: API_KEY },
-        headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
+    const response = await axios.post(
+      `${TAKTIKAL_BASE_URL}/api/auth/poll`,
+      {
+        authRequestId: authRequestId,
+        flowKey: FLOW_KEY,
+        lookupType: "PhoneNumber"
+      },
+      {
+        httpsAgent: taktikalAgent,
+        auth: { username: COMPANY_KEY, password: API_KEY }
       }
     );
-    
-    console.log("📡 FULL TAKTIKAL RESPONSE:", JSON.stringify(response.data, null, 2));
-    
+
+    console.log("📡 Taktikal Poll Response:", JSON.stringify(response.data, null, 2));
     res.json(response.data);
 
   } catch (error) {
     console.error("❌ Polling Error:", error.message);
     if (error.response) {
-        console.error("Status:", error.response.status);
-        console.error("Data:", error.response.data);
-        return res.status(error.response.status).json(error.response.data);
+      return res.status(error.response.status).json(error.response.data);
     }
     res.status(500).json({ error: "Polling Failed" });
   }
 });
 
 // =========================================================
-// 4. START THE SERVER (THIS WAS MISSING)
+// 4. START SERVER
 // =========================================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
