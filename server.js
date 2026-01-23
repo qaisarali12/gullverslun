@@ -17,6 +17,10 @@ const FLOW_KEY = "ad62cb968983";
 // ✅ OFFICIAL PRODUCTION BASE URL
 const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
 
+// ✅ SHOPIFY CONFIGURATION (Added)
+const SHOPIFY_DOMAIN = "gullmarkadurinn.myshopify.com";
+const SHOPIFY_ACCESS_TOKEN = "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"; // Admin API Token
+
 // =========================================================
 // 1.1 SHARED SSL AGENT (FIXES SSL ERROR 80)
 // =========================================================
@@ -106,6 +110,93 @@ app.post("/api/check-auth-status", async (req, res) => {
       return res.status(error.response.status).json(error.response.data);
     }
     res.status(500).json({ error: "Polling Failed" });
+  }
+});
+
+// =========================================================
+// 4. SHOPIFY CUSTOMER SYNC (NEW ROUTE)
+// =========================================================
+// Call this AFTER Taktikal returns "Success"
+app.post("/api/createCustomer", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    console.log("🔄 Syncing Shopify Customer for:", phone);
+
+    if (!phone) return res.status(400).json({ error: "Phone number required" });
+
+    // 1. Format Phone for Shopify (E.164 Strict)
+    let cleanPhone = phone.toString().replace(/[^0-9]/g, "");
+    
+    // Default to Iceland (+354) if missing country code, otherwise ensure + is present
+    if (cleanPhone.length === 7) {
+        cleanPhone = `354${cleanPhone}`;
+    }
+    
+    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; // Ensure single + at start
+    const dummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; // Consistent Dummy Email
+    const tempPassword = crypto.randomBytes(10).toString("hex") + "!Aa1"; // Secure Random Password
+
+    // Common Headers for Shopify Admin API
+    const shopifyConfig = {
+      headers: {
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+        "Content-Type": "application/json"
+      }
+    };
+
+    // 2. Search if customer exists
+    const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2025-10/customers/search.json?query=email:${dummyEmail}`;
+    const searchRes = await axios.get(searchUrl, shopifyConfig);
+
+    let customerId;
+
+    if (searchRes.data.customers.length === 0) {
+      // --- CREATE NEW CUSTOMER ---
+      console.log("Creating new Shopify customer...");
+      const createUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2025-10/customers.json`;
+      
+      const createRes = await axios.post(createUrl, {
+        customer: {
+          first_name: "First",
+          last_name: "Second Name",
+          email: dummyEmail,
+          phone: formattedPhone,
+          verified_email: true,
+          password: tempPassword,
+          password_confirmation: tempPassword
+        }
+      }, shopifyConfig);
+      
+      customerId = createRes.data.customer.id;
+    } else {
+      // --- UPDATE EXISTING CUSTOMER ---
+      console.log("Updating existing Shopify customer...");
+      customerId = searchRes.data.customers[0].id;
+      const updateUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2025-10/customers/${customerId}.json`;
+
+      await axios.put(updateUrl, {
+        customer: {
+          id: customerId,
+          password: tempPassword,
+          password_confirmation: tempPassword
+        }
+      }, shopifyConfig);
+    }
+
+    // 3. Return Credentials to Frontend
+    console.log("✅ Shopify Sync Success for:", formattedPhone);
+    res.json({
+      success: true,
+      dummy_email: dummyEmail,
+      temp_password: tempPassword
+    });
+
+  } catch (error) {
+    console.error("❌ Shopify Sync Error:", error.response?.data || error.message);
+    res.status(500).json({ 
+      error: "Shopify Sync Failed", 
+      details: error.response?.data 
+    });
   }
 });
 
