@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
 const https = require("https");
+const crypto = require("crypto"); // Added for password generation
 const app = express();
 
 app.use(cors());
