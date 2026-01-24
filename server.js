@@ -121,16 +121,18 @@ app.post("/api/check-auth-status", async (req, res) => {
 app.post("/api/createCustomer", async (req, res) => {
   try {
     const { phone } = req.body;
+    console.log("🔄 Processing Login for:", phone);
+
     if (!phone) return res.status(400).json({ error: "Phone number required" });
 
-    // 1. Format Phone
+    // 1. Format Phone (E.164 Strict)
     let cleanPhone = phone.toString().replace(/[^0-9]/g, "");
+    // Default to Iceland (+354) if missing country code
     if (cleanPhone.length === 7) cleanPhone = `354${cleanPhone}`;
-    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`;
+    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; 
     
-    // 2. Generate Credentials
-    // We use the same dummy email logic so we can find them again
-    const dummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; 
+    // Generate Credentials
+    const defaultDummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; 
     const tempPassword = crypto.randomBytes(10).toString("hex") + "!Aa1"; 
 
     const shopifyConfig = {
@@ -140,22 +142,23 @@ app.post("/api/createCustomer", async (req, res) => {
       }
     };
 
-    // 3. SEARCH FIRST (Crucial Step)
-    // We search by phone to see if they exist
+    // ---------------------------------------------------------
+    // 2. SEARCH BY PHONE (The Fix)
+    // ---------------------------------------------------------
     const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=phone:${formattedPhone}`;
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
+    let finalEmailToUse = defaultDummyEmail;
     let customerId;
-    let finalEmailToUse = dummyEmail;
 
     if (searchRes.data.customers.length === 0) {
-      // --- A. USER DOES NOT EXIST -> CREATE ---
-      console.log("Creating new customer...");
+      // === CASE A: NEW USER (CREATE) ===
+      console.log("User not found. Creating new account...");
       const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
         customer: {
           first_name: "Mobile",
           last_name: "User",
-          email: dummyEmail,
+          email: defaultDummyEmail,
           phone: formattedPhone,
           verified_email: true,
           password: tempPassword,
@@ -163,14 +166,18 @@ app.post("/api/createCustomer", async (req, res) => {
           send_email_welcome: false
         }
       }, shopifyConfig);
+      
       customerId = createRes.data.customer.id;
+      finalEmailToUse = createRes.data.customer.email;
+
     } else {
-      // --- B. USER EXISTS -> UPDATE PASSWORD ---
-      // This is the "Login" path. We update the password so we know it.
-      console.log("User exists. Updating password for login...");
-      const existingCustomer = searchRes.data.customers[0];
-      customerId = existingCustomer.id;
-      finalEmailToUse = existingCustomer.email; // Use their REAL email if they changed it
+      // === CASE B: EXISTING USER (UPDATE) ===
+      console.log("User found! Updating password...");
+      const existingUser = searchRes.data.customers[0];
+      customerId = existingUser.id;
+      
+      // CRITICAL: Use the email currently on file (User might have updated it)
+      finalEmailToUse = existingUser.email; 
 
       await axios.put(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${customerId}.json`, {
         customer: {
@@ -181,17 +188,21 @@ app.post("/api/createCustomer", async (req, res) => {
       }, shopifyConfig);
     }
 
-    // 4. RETURN SUCCESS (Always)
-    // Whether we created or updated, we now have valid credentials.
+    // 3. RETURN CREDENTIALS (Success)
+    // The frontend doesn't need to know if they are new or old.
+    // It just takes these credentials and logs them in.
     res.json({
-      success: true, 
-      dummy_email: finalEmailToUse, 
+      success: true,
+      dummy_email: finalEmailToUse,
       temp_password: tempPassword
     });
 
   } catch (error) {
-    console.error("Backend Error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed", details: error.response?.data });
+    console.error("❌ Login Error:", error.response?.data || error.message);
+    res.status(500).json({ 
+      error: "Login Failed", 
+      details: error.response?.data 
+    });
   }
 });
 
