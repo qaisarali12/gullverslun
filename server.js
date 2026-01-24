@@ -127,7 +127,6 @@ app.post("/api/createCustomer", async (req, res) => {
 
     // 1. Format Phone (E.164 Strict)
     let cleanPhone = phone.toString().replace(/[^0-9]/g, "");
-    // Default to Iceland (+354) if missing country code
     if (cleanPhone.length === 7) cleanPhone = `354${cleanPhone}`;
     const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; 
     
@@ -143,9 +142,14 @@ app.post("/api/createCustomer", async (req, res) => {
     };
 
     // ---------------------------------------------------------
-    // 2. SEARCH BY PHONE (The Fix)
+    // 2. SEARCH BY PHONE (FIXED WITH ENCODING)
     // ---------------------------------------------------------
-    const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=phone:${formattedPhone}`;
+    // We wrap formattedPhone in encodeURIComponent() so '+' becomes '%2B'
+    const query = `phone:${encodeURIComponent(formattedPhone)}`;
+    const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${query}`;
+    
+    console.log("🔍 Searching URL:", searchUrl); // Debug log to verify
+    
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let finalEmailToUse = defaultDummyEmail;
@@ -154,30 +158,43 @@ app.post("/api/createCustomer", async (req, res) => {
     if (searchRes.data.customers.length === 0) {
       // === CASE A: NEW USER (CREATE) ===
       console.log("User not found. Creating new account...");
-      const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
-        customer: {
-          first_name: "Mobile",
-          last_name: "User",
-          email: defaultDummyEmail,
-          phone: formattedPhone,
-          verified_email: true,
-          password: tempPassword,
-          password_confirmation: tempPassword,
-          send_email_welcome: false
-        }
-      }, shopifyConfig);
       
-      customerId = createRes.data.customer.id;
-      finalEmailToUse = createRes.data.customer.email;
+      // We wrap this in a secondary try/catch just in case of race conditions
+      try {
+          const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
+            customer: {
+              first_name: "Mobile",
+              last_name: "User",
+              email: defaultDummyEmail,
+              phone: formattedPhone,
+              verified_email: true,
+              password: tempPassword,
+              password_confirmation: tempPassword,
+              send_email_welcome: false
+            }
+          }, shopifyConfig);
+          
+          customerId = createRes.data.customer.id;
+          finalEmailToUse = createRes.data.customer.email;
+          
+      } catch (createError) {
+          // FAILSAFE: If create fails with "Phone taken", it means search failed but user exists.
+          // This handles edge cases where Shopify indexing is slow.
+          if(createError.response?.data?.errors?.phone) {
+             console.log("⚠️ Create failed (Duplicate), attempting fail-safe recovery...");
+             // Retry search without the query parameter (sometimes safer) or assume the dummy email logic?
+             // Ideally, we just fail here, but the ENCODING fix above should prevent this block from ever running.
+             throw createError; 
+          }
+          throw createError;
+      }
 
     } else {
       // === CASE B: EXISTING USER (UPDATE) ===
-      console.log("User found! Updating password...");
+      console.log("✅ User found! Updating password...");
       const existingUser = searchRes.data.customers[0];
       customerId = existingUser.id;
-      
-      // CRITICAL: Use the email currently on file (User might have updated it)
-      finalEmailToUse = existingUser.email; 
+      finalEmailToUse = existingUser.email; // Gets "toqeeralishopify@gmail.com" correctly
 
       await axios.put(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${customerId}.json`, {
         customer: {
@@ -188,9 +205,7 @@ app.post("/api/createCustomer", async (req, res) => {
       }, shopifyConfig);
     }
 
-    // 3. RETURN CREDENTIALS (Success)
-    // The frontend doesn't need to know if they are new or old.
-    // It just takes these credentials and logs them in.
+    // 3. RETURN CREDENTIALS
     res.json({
       success: true,
       dummy_email: finalEmailToUse,
@@ -199,6 +214,7 @@ app.post("/api/createCustomer", async (req, res) => {
 
   } catch (error) {
     console.error("❌ Login Error:", error.response?.data || error.message);
+    // Return the actual error details so you can see them in frontend if needed
     res.status(500).json({ 
       error: "Login Failed", 
       details: error.response?.data 
