@@ -120,7 +120,7 @@ app.post("/api/check-auth-status", async (req, res) => {
 // Call this AFTER Taktikal returns "Success"
 app.post("/api/createCustomer", async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, name, ssn } = req.body;
     console.log("🔄 Processing Login for:", phone);
 
     if (!phone) return res.status(400).json({ error: "Phone number required" });
@@ -158,7 +158,7 @@ app.post("/api/createCustomer", async (req, res) => {
       console.log("Creating new account...");
       const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
         customer: {
-          first_name: "Mobile",
+          first_name: name,
           last_name: "User",
           email: defaultDummyEmail,
           phone: formattedPhone,
