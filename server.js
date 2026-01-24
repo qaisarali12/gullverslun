@@ -120,20 +120,17 @@ app.post("/api/check-auth-status", async (req, res) => {
 // Call this AFTER Taktikal returns "Success"
 app.post("/api/createCustomer", async (req, res) => {
   try {
-    const { phone, name, ssn } = req.body;
+    const { phone, name, ssn } = req.body; // 1. Get SSN
     console.log("🔄 Processing Login for:", phone);
 
     if (!phone) return res.status(400).json({ error: "Phone number required" });
 
-    // 1. CLEAN & FORMAT PHONE (Handles spaces like "+354 857 9293")
-    let cleanPhone = phone.toString().replace(/[^0-9]/g, ""); // Removes + and spaces
-    
-    // Default to Iceland if user typed "8579293" (7 digits)
+    // --- PHONE FORMATTING ---
+    let cleanPhone = phone.toString().replace(/[^0-9]/g, "");
     if (cleanPhone.length === 7) cleanPhone = `354${cleanPhone}`;
+    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; 
     
-    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; // Ensure +354...
-    
-    // Generate Credentials
+    // Credentials
     const defaultDummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; 
     const tempPassword = crypto.randomBytes(10).toString("hex") + "!Aa1"; 
 
@@ -144,7 +141,7 @@ app.post("/api/createCustomer", async (req, res) => {
       }
     };
 
-    // 2. SEARCH (With URL Encoding Fix)
+    // --- SEARCH ---
     const query = `phone:${encodeURIComponent(formattedPhone)}`;
     const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${query}`;
     
@@ -155,17 +152,18 @@ app.post("/api/createCustomer", async (req, res) => {
 
     if (searchRes.data.customers.length === 0) {
       // === CASE A: NEW USER ===
-      console.log("Creating new account...");
+      console.log("Creating new account with SSN tag...");
+      
       const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
         customer: {
           first_name: name,
-          last_name: "User",
           email: defaultDummyEmail,
           phone: formattedPhone,
           verified_email: true,
           password: tempPassword,
           password_confirmation: tempPassword,
-          send_email_welcome: false
+          send_email_welcome: false,
+          tags: ssn // <--- ADD SSN TAG HERE
         }
       }, shopifyConfig);
       
@@ -173,18 +171,24 @@ app.post("/api/createCustomer", async (req, res) => {
 
     } else {
       // === CASE B: EXISTING USER ===
-      console.log("User found! Updating credentials...");
+      console.log("User found! Updating credentials & tags...");
       const existingUser = searchRes.data.customers[0];
       customerId = existingUser.id;
 
-      // FIX FOR SCREENSHOT ISSUE:
-      // If user has NO email (null), we must assign the dummy email now.
-      // Otherwise, keep their existing email.
+      // 1. Handle Email Logic (Prevent "No Email" error)
       if (existingUser.email) {
           finalEmailToUse = existingUser.email;
       } else {
           finalEmailToUse = defaultDummyEmail; 
-          console.log("⚠️ User had no email. Assigning dummy email for login.");
+      }
+
+      // 2. Handle Tags Logic (Append, don't overwrite)
+      let currentTags = existingUser.tags || "";
+      let newTags = currentTags;
+
+      // Only add SSN if it's provided AND not already in the tags
+      if (ssn && !currentTags.includes(ssn)) {
+          newTags = currentTags ? `${currentTags}, ${ssn}` : ssn;
       }
 
       await axios.put(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${customerId}.json`, {
@@ -192,12 +196,13 @@ app.post("/api/createCustomer", async (req, res) => {
           id: customerId,
           password: tempPassword,
           password_confirmation: tempPassword,
-          email: finalEmailToUse // Ensure the account has an email
+          email: finalEmailToUse,
+          tags: newTags // <--- UPDATE TAGS SAFELY
         }
       }, shopifyConfig);
     }
 
-    // 3. RETURN SUCCESS
+    // RETURN SUCCESS
     res.json({
       success: true,
       dummy_email: finalEmailToUse,
