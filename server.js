@@ -134,8 +134,7 @@ app.post("/api/createCustomer", async (req, res) => {
     const defaultDummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; 
     const tempPassword = crypto.randomBytes(10).toString("hex") + "!Aa1"; 
 
-    // 2. NAME HANDLING (Split First/Last)
-    // If name is "Toqeer Ali", this makes First="Toqeer", Last="Ali"
+    // 2. NAME HANDLING
     let firstName = name || "Mobile";
     let lastName = "User";
     
@@ -152,15 +151,39 @@ app.post("/api/createCustomer", async (req, res) => {
       }
     };
 
-    // 3. SEARCH
+    // 3. SEARCH BY PHONE FIRST
+    // We check if this exact phone number is already registered
     const query = `phone:${encodeURIComponent(formattedPhone)}`;
     const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${query}`;
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let finalEmailToUse = defaultDummyEmail;
     
+    // === LOGIC BRANCHING ===
+    
     if (searchRes.data.customers.length === 0) {
-      // === CASE A: CREATE NEW USER ===
+      // === CASE A: PHONE NOT FOUND (Potential New User) ===
+      
+      // 🛑 NEW CHECK: Does this SSN already exist on a DIFFERENT account?
+      if (ssn) {
+          const ssnString = String(ssn);
+          const tagQuery = `tag:${ssnString}`;
+          const tagSearchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${tagQuery}`;
+          
+          const tagRes = await axios.get(tagSearchUrl, shopifyConfig);
+          
+          if (tagRes.data.customers.length > 0) {
+              console.log("⚠️ Validation Failed: SSN already exists on another account.");
+              
+              // STOP HERE: Return specific error so Frontend can show it
+              return res.json({
+                  success: false,
+                  error: "A customer with this SSN already exists." 
+              });
+          }
+      }
+
+      // If SSN check passed (or no SSN provided), proceed to Create
       console.log("Creating new account...");
       
       const customerPayload = {
@@ -174,31 +197,24 @@ app.post("/api/createCustomer", async (req, res) => {
           send_email_welcome: false
       };
 
-      // ADD SSN TAG (Convert to String safely)
-      if (ssn) {
-          customerPayload.tags = String(ssn); 
-      }
+      if (ssn) customerPayload.tags = String(ssn); 
 
       await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
         customer: customerPayload
       }, shopifyConfig);
       
     } else {
-      // === CASE B: UPDATE EXISTING USER ===
-      console.log("User found! Updating...");
+      // === CASE B: EXISTING USER (Phone Match) ===
+      console.log("User found by Phone! Updating...");
       const existingUser = searchRes.data.customers[0];
       const customerId = existingUser.id;
 
-      // Handle Email (Keep existing if present)
-      if (existingUser.email) {
-          finalEmailToUse = existingUser.email;
-      }
+      if (existingUser.email) finalEmailToUse = existingUser.email;
 
-      // Handle Tags (Append SSN if missing)
+      // Update Tags
       let newTags = existingUser.tags || "";
       if (ssn) {
           const ssnString = String(ssn);
-          // Only add if not already there
           if (!newTags.includes(ssnString)) {
               newTags = newTags ? `${newTags}, ${ssnString}` : ssnString;
           }
@@ -215,7 +231,7 @@ app.post("/api/createCustomer", async (req, res) => {
       }, shopifyConfig);
     }
 
-    // 4. RETURN SUCCESS
+    // 4. RETURN SUCCESS (Only if we didn't return early in Step 3)
     res.json({
       success: true,
       dummy_email: finalEmailToUse,
