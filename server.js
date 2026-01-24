@@ -150,7 +150,7 @@ app.post("/api/createCustomer", async (req, res) => {
 
     let finalEmailToUse = defaultDummyEmail;
     let customerId;
-
+    console.log("searchRes.data: ", searchRes.data);
     if (searchRes.data.customers.length === 0) {
       // === CASE A: NEW USER (CREATE) ===
       console.log("User not found. Creating new account...");
