@@ -120,19 +120,30 @@ app.post("/api/check-auth-status", async (req, res) => {
 // Call this AFTER Taktikal returns "Success"
 app.post("/api/createCustomer", async (req, res) => {
   try {
-    const { phone, name, ssn } = req.body; // 1. Get SSN
-    console.log("🔄 Processing Login for:", phone);
+    const { phone, name, ssn } = req.body;
+    
+    console.log(`🔄 Processing: Phone=${phone}, Name=${name}, SSN=${ssn}`);
 
     if (!phone) return res.status(400).json({ error: "Phone number required" });
 
-    // --- PHONE FORMATTING ---
+    // 1. CLEAN & FORMAT PHONE
     let cleanPhone = phone.toString().replace(/[^0-9]/g, "");
     if (cleanPhone.length === 7) cleanPhone = `354${cleanPhone}`;
     const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; 
     
-    // Credentials
     const defaultDummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; 
     const tempPassword = crypto.randomBytes(10).toString("hex") + "!Aa1"; 
+
+    // 2. NAME HANDLING (Split First/Last)
+    // If name is "Toqeer Ali", this makes First="Toqeer", Last="Ali"
+    let firstName = name || "Mobile";
+    let lastName = "User";
+    
+    if (name && name.includes(" ")) {
+        const parts = name.split(" ");
+        firstName = parts[0];
+        lastName = parts.slice(1).join(" ");
+    }
 
     const shopifyConfig = {
       headers: {
@@ -141,54 +152,56 @@ app.post("/api/createCustomer", async (req, res) => {
       }
     };
 
-    // --- SEARCH ---
+    // 3. SEARCH
     const query = `phone:${encodeURIComponent(formattedPhone)}`;
     const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${query}`;
-    
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let finalEmailToUse = defaultDummyEmail;
-    let customerId;
-
+    
     if (searchRes.data.customers.length === 0) {
-      // === CASE A: NEW USER ===
-      console.log("Creating new account with SSN tag...");
+      // === CASE A: CREATE NEW USER ===
+      console.log("Creating new account...");
       
-      const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
-        customer: {
-          first_name: name,
+      const customerPayload = {
+          first_name: firstName,
+          last_name: lastName,
           email: defaultDummyEmail,
           phone: formattedPhone,
           verified_email: true,
           password: tempPassword,
           password_confirmation: tempPassword,
-          send_email_welcome: false,
-          tags: ssn // <--- ADD SSN TAG HERE
-        }
-      }, shopifyConfig);
-      
-      customerId = createRes.data.customer.id;
+          send_email_welcome: false
+      };
 
-    } else {
-      // === CASE B: EXISTING USER ===
-      console.log("User found! Updating credentials & tags...");
-      const existingUser = searchRes.data.customers[0];
-      customerId = existingUser.id;
-
-      // 1. Handle Email Logic (Prevent "No Email" error)
-      if (existingUser.email) {
-          finalEmailToUse = existingUser.email;
-      } else {
-          finalEmailToUse = defaultDummyEmail; 
+      // ADD SSN TAG (Convert to String safely)
+      if (ssn) {
+          customerPayload.tags = String(ssn); 
       }
 
-      // 2. Handle Tags Logic (Append, don't overwrite)
-      let currentTags = existingUser.tags || "";
-      let newTags = currentTags;
+      await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
+        customer: customerPayload
+      }, shopifyConfig);
+      
+    } else {
+      // === CASE B: UPDATE EXISTING USER ===
+      console.log("User found! Updating...");
+      const existingUser = searchRes.data.customers[0];
+      const customerId = existingUser.id;
 
-      // Only add SSN if it's provided AND not already in the tags
-      if (ssn && !currentTags.includes(ssn)) {
-          newTags = currentTags ? `${currentTags}, ${ssn}` : ssn;
+      // Handle Email (Keep existing if present)
+      if (existingUser.email) {
+          finalEmailToUse = existingUser.email;
+      }
+
+      // Handle Tags (Append SSN if missing)
+      let newTags = existingUser.tags || "";
+      if (ssn) {
+          const ssnString = String(ssn);
+          // Only add if not already there
+          if (!newTags.includes(ssnString)) {
+              newTags = newTags ? `${newTags}, ${ssnString}` : ssnString;
+          }
       }
 
       await axios.put(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${customerId}.json`, {
@@ -197,12 +210,12 @@ app.post("/api/createCustomer", async (req, res) => {
           password: tempPassword,
           password_confirmation: tempPassword,
           email: finalEmailToUse,
-          tags: newTags // <--- UPDATE TAGS SAFELY
+          tags: newTags 
         }
       }, shopifyConfig);
     }
 
-    // RETURN SUCCESS
+    // 4. RETURN SUCCESS
     res.json({
       success: true,
       dummy_email: finalEmailToUse,
