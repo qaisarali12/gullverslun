@@ -231,7 +231,7 @@ app.post("/api/createCustomer", async (req, res) => {
 app.post("/api/updateEmail", async (req, res) => {
   try {
     const { shopifyCustomerId, newEmail, termsAccepted } = req.body;
-
+    console.log("shopifyCustomerId, newEmail, termsAccepted :", shopifyCustomerId, newEmail, termsAccepted );
     console.log(`📧 Request to update email for ID: ${shopifyCustomerId} to ${newEmail}`);
 
     // 1. VALIDATION
