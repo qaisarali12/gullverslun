@@ -6,7 +6,7 @@ const crypto = require("crypto"); // Added for password generation
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); 
 
 // ========================================================= 
 // 1. CONFIGURATION (Production)
