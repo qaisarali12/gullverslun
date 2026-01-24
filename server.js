@@ -216,63 +216,51 @@ app.post("/api/createCustomer", async (req, res) => {
 app.post("/api/updateEmail", async (req, res) => {
   try {
     const { shopifyCustomerId, newEmail, termsAccepted } = req.body;
-    console.log("shopifyCustomerId, newEmail, termsAccepted :", shopifyCustomerId, newEmail, termsAccepted );
-    console.log(`📧 Request to update email for ID: ${shopifyCustomerId} to ${newEmail}`);
+    console.log(`📧 Updating email for ID: ${shopifyCustomerId} to ${newEmail}`);
 
-    // 1. VALIDATION
-    if (!shopifyCustomerId) {
-      return res.status(400).json({ success: false, error: "Customer ID is required" });
-    }
-    if (!newEmail || !newEmail.includes("@")) {
-      return res.status(400).json({ success: false, error: "Invalid email address" });
-    }
-    if (termsAccepted !== true) {
-      return res.status(400).json({ success: false, error: "You must accept the Terms & Conditions." });
+    if (!shopifyCustomerId || !newEmail || termsAccepted !== true) {
+      return res.status(400).json({ success: false, error: "Invalid data" });
     }
 
-    // 2. CONFIGURATION
+    // 1. GENERATE NEW PASSWORD (Required to re-login)
+    const newPassword = crypto.randomBytes(10).toString("hex") + "!Aa1";
+
     const shopifyConfig = {
       headers: {
-        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN, // Uses your existing constant
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
         "Content-Type": "application/json"
       }
     };
 
-    // 3. CALL SHOPIFY ADMIN API (PUT Request)
-    // We update the customer resource with the new email
+    // 2. UPDATE SHOPIFY (Email + Password)
     const updateUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${shopifyCustomerId}.json`;
 
     await axios.put(updateUrl, {
       customer: {
         id: shopifyCustomerId,
         email: newEmail,
-        // Optional: Mark email as verified immediately since they are logged in
+        password: newPassword, // <--- UPDATE PASSWORD TOO
+        password_confirmation: newPassword,
         verified_email: true 
       }
     }, shopifyConfig);
 
-    console.log("✅ Email updated successfully.");
+    console.log("✅ Email & Password updated.");
 
+    // 3. RETURN NEW CREDENTIALS TO FRONTEND
     return res.json({
       success: true,
-      message: "Email updated successfully"
+      new_email: newEmail,
+      new_password: newPassword // <--- Send this back
     });
 
   } catch (error) {
-    console.error("❌ Email Update Failed:", error.response?.data || error.message);
-
-    // Handle "Email already taken" error specifically
+    console.error("❌ Update Failed:", error.response?.data || error.message);
+    // Handle "Email taken" specifically
     if (error.response?.data?.errors?.email) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "This email address is already associated with another account." 
-      });
+        return res.json({ success: false, error: "This email is already in use." });
     }
-
-    return res.status(500).json({ 
-      success: false,
-      error: "Failed to update email. Please try again." 
-    });
+    return res.status(500).json({ success: false, error: "Update failed." });
   }
 });
 
