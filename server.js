@@ -125,10 +125,13 @@ app.post("/api/createCustomer", async (req, res) => {
 
     if (!phone) return res.status(400).json({ error: "Phone number required" });
 
-    // 1. Format Phone (E.164 Strict)
-    let cleanPhone = phone.toString().replace(/[^0-9]/g, "");
+    // 1. CLEAN & FORMAT PHONE (Handles spaces like "+354 857 9293")
+    let cleanPhone = phone.toString().replace(/[^0-9]/g, ""); // Removes + and spaces
+    
+    // Default to Iceland if user typed "8579293" (7 digits)
     if (cleanPhone.length === 7) cleanPhone = `354${cleanPhone}`;
-    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; 
+    
+    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; // Ensure +354...
     
     // Generate Credentials
     const defaultDummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; 
@@ -141,71 +144,60 @@ app.post("/api/createCustomer", async (req, res) => {
       }
     };
 
-    // ---------------------------------------------------------
-    // 2. SEARCH BY PHONE (FIXED WITH ENCODING)
-    // ---------------------------------------------------------
-    // We wrap formattedPhone in encodeURIComponent() so '+' becomes '%2B'
+    // 2. SEARCH (With URL Encoding Fix)
     const query = `phone:${encodeURIComponent(formattedPhone)}`;
     const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${query}`;
-    
-    console.log("🔍 Searching URL:", searchUrl); // Debug log to verify
     
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let finalEmailToUse = defaultDummyEmail;
     let customerId;
-    console.log("searchRes.data: ", searchRes.data);
+
     if (searchRes.data.customers.length === 0) {
-      // === CASE A: NEW USER (CREATE) ===
-      console.log("User not found. Creating new account...");
+      // === CASE A: NEW USER ===
+      console.log("Creating new account...");
+      const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
+        customer: {
+          first_name: "Mobile",
+          last_name: "User",
+          email: defaultDummyEmail,
+          phone: formattedPhone,
+          verified_email: true,
+          password: tempPassword,
+          password_confirmation: tempPassword,
+          send_email_welcome: false
+        }
+      }, shopifyConfig);
       
-      // We wrap this in a secondary try/catch just in case of race conditions
-      try {
-          const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
-            customer: {
-              first_name: "Mobile",
-              last_name: "User",
-              email: defaultDummyEmail,
-              phone: formattedPhone,
-              verified_email: true,
-              password: tempPassword,
-              password_confirmation: tempPassword,
-              send_email_welcome: false
-            }
-          }, shopifyConfig);
-          
-          customerId = createRes.data.customer.id;
-          finalEmailToUse = createRes.data.customer.email;
-          
-      } catch (createError) {
-          // FAILSAFE: If create fails with "Phone taken", it means search failed but user exists.
-          // This handles edge cases where Shopify indexing is slow.
-          if(createError.response?.data?.errors?.phone) {
-             console.log("⚠️ Create failed (Duplicate), attempting fail-safe recovery...");
-             // Retry search without the query parameter (sometimes safer) or assume the dummy email logic?
-             // Ideally, we just fail here, but the ENCODING fix above should prevent this block from ever running.
-             throw createError; 
-          }
-          throw createError;
-      }
+      customerId = createRes.data.customer.id;
 
     } else {
-      // === CASE B: EXISTING USER (UPDATE) ===
-      console.log("✅ User found! Updating password...");
+      // === CASE B: EXISTING USER ===
+      console.log("User found! Updating credentials...");
       const existingUser = searchRes.data.customers[0];
       customerId = existingUser.id;
-      finalEmailToUse = existingUser.email; // Gets "toqeeralishopify@gmail.com" correctly
+
+      // FIX FOR SCREENSHOT ISSUE:
+      // If user has NO email (null), we must assign the dummy email now.
+      // Otherwise, keep their existing email.
+      if (existingUser.email) {
+          finalEmailToUse = existingUser.email;
+      } else {
+          finalEmailToUse = defaultDummyEmail; 
+          console.log("⚠️ User had no email. Assigning dummy email for login.");
+      }
 
       await axios.put(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${customerId}.json`, {
         customer: {
           id: customerId,
           password: tempPassword,
-          password_confirmation: tempPassword
+          password_confirmation: tempPassword,
+          email: finalEmailToUse // Ensure the account has an email
         }
       }, shopifyConfig);
     }
 
-    // 3. RETURN CREDENTIALS
+    // 3. RETURN SUCCESS
     res.json({
       success: true,
       dummy_email: finalEmailToUse,
@@ -214,11 +206,7 @@ app.post("/api/createCustomer", async (req, res) => {
 
   } catch (error) {
     console.error("❌ Login Error:", error.response?.data || error.message);
-    // Return the actual error details so you can see them in frontend if needed
-    res.status(500).json({ 
-      error: "Login Failed", 
-      details: error.response?.data 
-    });
+    res.status(500).json({ error: "Login Failed", details: error.response?.data });
   }
 });
 
