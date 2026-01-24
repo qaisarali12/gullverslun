@@ -157,13 +157,13 @@ app.post("/api/createCustomer", async (req, res) => {
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let finalEmailToUse = defaultDummyEmail;
-    let totalSpent = "0.00"; // Default value
-    let currency = "ISK";    // Default currency
+    let totalSpent = "0.00"; 
+    let currency = "ISK";    
     
     // === LOGIC BRANCHING ===
     
     if (searchRes.data.customers.length === 0) {
-      // === CASE A: NEW USER ===
+      // === CASE A: NEW USER (CREATE) ===
       
       // SSN Duplication Check
       if (ssn) {
@@ -182,7 +182,7 @@ app.post("/api/createCustomer", async (req, res) => {
           }
       }
 
-      console.log("Creating new account...");
+      console.log("Creating new account with Verified Metafield...");
       
       const customerPayload = {
           first_name: firstName,
@@ -192,7 +192,16 @@ app.post("/api/createCustomer", async (req, res) => {
           verified_email: true,
           password: tempPassword,
           password_confirmation: tempPassword,
-          send_email_welcome: false
+          send_email_welcome: false,
+          // --- ADDED METAFIELD HERE ---
+          metafields: [
+            {
+              namespace: "custom",
+              key: "verified",
+              value: "true",
+              type: "boolean"
+            }
+          ]
       };
 
       if (ssn) customerPayload.tags = String(ssn); 
@@ -201,17 +210,17 @@ app.post("/api/createCustomer", async (req, res) => {
         customer: customerPayload
       }, shopifyConfig);
 
-      // CAPTURE TOTAL SPENT (Will be 0.00 for new users)
+      // CAPTURE TOTAL SPENT
       totalSpent = createRes.data.customer.total_spent;
       currency = createRes.data.customer.currency;
       
     } else {
-      // === CASE B: EXISTING USER ===
+      // === CASE B: EXISTING USER (UPDATE) ===
       console.log("User found! Updating...");
       const existingUser = searchRes.data.customers[0];
       const customerId = existingUser.id;
 
-      // CAPTURE TOTAL SPENT (From existing data)
+      // CAPTURE TOTAL SPENT
       totalSpent = existingUser.total_spent;
       currency = existingUser.currency;
 
@@ -237,13 +246,13 @@ app.post("/api/createCustomer", async (req, res) => {
       }, shopifyConfig);
     }
 
-    // 4. RETURN SUCCESS WITH TOTAL SPENT
+    // 4. RETURN SUCCESS
     res.json({
       success: true,
       dummy_email: finalEmailToUse,
       temp_password: tempPassword,
-      total_spent: totalSpent, // <--- Now included
-      currency: currency       // <--- Now included
+      total_spent: totalSpent, 
+      currency: currency       
     });
 
   } catch (error) {
