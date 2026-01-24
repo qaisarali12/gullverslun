@@ -151,20 +151,21 @@ app.post("/api/createCustomer", async (req, res) => {
       }
     };
 
-    // 3. SEARCH BY PHONE FIRST
-    // We check if this exact phone number is already registered
+    // 3. SEARCH BY PHONE
     const query = `phone:${encodeURIComponent(formattedPhone)}`;
     const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${query}`;
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let finalEmailToUse = defaultDummyEmail;
+    let totalSpent = "0.00"; // Default value
+    let currency = "ISK";    // Default currency
     
     // === LOGIC BRANCHING ===
     
     if (searchRes.data.customers.length === 0) {
-      // === CASE A: PHONE NOT FOUND (Potential New User) ===
+      // === CASE A: NEW USER ===
       
-      // 🛑 NEW CHECK: Does this SSN already exist on a DIFFERENT account?
+      // SSN Duplication Check
       if (ssn) {
           const ssnString = String(ssn);
           const tagQuery = `tag:${ssnString}`;
@@ -173,9 +174,7 @@ app.post("/api/createCustomer", async (req, res) => {
           const tagRes = await axios.get(tagSearchUrl, shopifyConfig);
           
           if (tagRes.data.customers.length > 0) {
-              console.log("⚠️ Validation Failed: SSN already exists on another account.");
-              
-              // STOP HERE: Return specific error so Frontend can show it
+              console.log("⚠️ Validation Failed: SSN already exists.");
               return res.json({
                   success: false,
                   error: "A customer with this SSN already exists." 
@@ -183,7 +182,6 @@ app.post("/api/createCustomer", async (req, res) => {
           }
       }
 
-      // If SSN check passed (or no SSN provided), proceed to Create
       console.log("Creating new account...");
       
       const customerPayload = {
@@ -199,15 +197,23 @@ app.post("/api/createCustomer", async (req, res) => {
 
       if (ssn) customerPayload.tags = String(ssn); 
 
-      await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
+      const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
         customer: customerPayload
       }, shopifyConfig);
+
+      // CAPTURE TOTAL SPENT (Will be 0.00 for new users)
+      totalSpent = createRes.data.customer.total_spent;
+      currency = createRes.data.customer.currency;
       
     } else {
-      // === CASE B: EXISTING USER (Phone Match) ===
-      console.log("User found by Phone! Updating...");
+      // === CASE B: EXISTING USER ===
+      console.log("User found! Updating...");
       const existingUser = searchRes.data.customers[0];
       const customerId = existingUser.id;
+
+      // CAPTURE TOTAL SPENT (From existing data)
+      totalSpent = existingUser.total_spent;
+      currency = existingUser.currency;
 
       if (existingUser.email) finalEmailToUse = existingUser.email;
 
@@ -231,11 +237,13 @@ app.post("/api/createCustomer", async (req, res) => {
       }, shopifyConfig);
     }
 
-    // 4. RETURN SUCCESS (Only if we didn't return early in Step 3)
+    // 4. RETURN SUCCESS WITH TOTAL SPENT
     res.json({
       success: true,
       dummy_email: finalEmailToUse,
-      temp_password: tempPassword
+      temp_password: tempPassword,
+      total_spent: totalSpent, // <--- Now included
+      currency: currency       // <--- Now included
     });
 
   } catch (error) {
