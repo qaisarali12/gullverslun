@@ -120,24 +120,25 @@ app.post("/api/check-auth-status", async (req, res) => {
 // Call this AFTER Taktikal returns "Success"
 app.post("/api/createCustomer", async (req, res) => {
   try {
-    const { phone } = req.body;
-    console.log("🔄 Syncing Shopify Customer for:", phone);
+    // 1. Accept SSN (Kennitala) from the request
+    const { phone, ssn } = req.body; 
+    console.log("🔄 Syncing Shopify Customer for:", phone, "SSN:", ssn);
 
     if (!phone) return res.status(400).json({ error: "Phone number required" });
 
-    // 1. Format Phone for Shopify (E.164 Strict)
+    // 2. Format Phone (Strict E.164)
     let cleanPhone = phone.toString().replace(/[^0-9]/g, "");
     
-    // Default to Iceland (+354) if missing country code, otherwise ensure + is present
-    if (cleanPhone.length === 7) {
-        cleanPhone = `354${cleanPhone}`;
+    // Default to Iceland (+354) if missing country code
+    if (cleanPhone.length === 7 || cleanPhone.length === 10) { 
+       // Assuming 10 digit is local format without +, adjust logic as needed
+       if(cleanPhone.length === 7) cleanPhone = `354${cleanPhone}`;
     }
     
-    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; // Ensure single + at start
-    const dummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; // Consistent Dummy Email
-    const tempPassword = crypto.randomBytes(10).toString("hex") + "!Aa1"; // Secure Random Password
+    const formattedPhone = `+${cleanPhone.replace(/^\+/, '')}`; 
+    const dummyEmail = `${cleanPhone}@auth.gullmarkadurinn.is`; 
+    const tempPassword = crypto.randomBytes(10).toString("hex") + "!Aa1"; 
 
-    // Common Headers for Shopify Admin API
     const shopifyConfig = {
       headers: {
         "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
@@ -145,11 +146,23 @@ app.post("/api/createCustomer", async (req, res) => {
       }
     };
 
-    // 2. Search if customer exists
-    const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2025-10/customers/search.json?query=email:${dummyEmail}`;
+    // ---------------------------------------------------------
+    // 3. SEARCH STRATEGY: Find by PHONE, not Dummy Email
+    // ---------------------------------------------------------
+    // Why? If the user updates their email in Step 3, the "dummyEmail" search 
+    // would fail next time. Searching by phone is safer.
+    const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2025-10/customers/search.json?query=phone:${formattedPhone}`;
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let customerId;
+
+    // Define Metafields for SSN
+    const ssnMetafield = {
+        "namespace": "custom",
+        "key": "ssn", // or 'kennitala'
+        "value": ssn || "",
+        "type": "single_line_text_field"
+    };
 
     if (searchRes.data.customers.length === 0) {
       // --- CREATE NEW CUSTOMER ---
@@ -158,19 +171,22 @@ app.post("/api/createCustomer", async (req, res) => {
       
       const createRes = await axios.post(createUrl, {
         customer: {
-          first_name: "First",
-          last_name: "Second Name",
-          email: dummyEmail,
+          first_name: "Mobile",
+          last_name: "User",
+          email: dummyEmail, // Initial Dummy Email
           phone: formattedPhone,
           verified_email: true,
           password: tempPassword,
-          password_confirmation: tempPassword
+          password_confirmation: tempPassword,
+          metafields: [ssnMetafield] // <--- STORE SSN HERE
         }
       }, shopifyConfig);
       
       customerId = createRes.data.customer.id;
     } else {
       // --- UPDATE EXISTING CUSTOMER ---
+      // User exists! We update their password so they can login.
+      // We also verify/update the SSN if it was missing.
       console.log("Updating existing Shopify customer...");
       customerId = searchRes.data.customers[0].id;
       const updateUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2025-10/customers/${customerId}.json`;
@@ -179,16 +195,24 @@ app.post("/api/createCustomer", async (req, res) => {
         customer: {
           id: customerId,
           password: tempPassword,
-          password_confirmation: tempPassword
+          password_confirmation: tempPassword,
+          metafields: [ssnMetafield] // <--- ENSURE SSN IS SAVED
         }
       }, shopifyConfig);
     }
 
-    // 3. Return Credentials to Frontend
-    console.log("✅ Shopify Sync Success for:", formattedPhone);
+    // 4. Return Credentials
+    // We assume the email is the dummy one for login, 
+    // BUT if the user already changed it to a real email, we must return the REAL email
+    // or the login will fail.
+    const currentEmail = searchRes.data.customers.length > 0 
+                         ? searchRes.data.customers[0].email 
+                         : dummyEmail;
+
+    console.log("✅ Sync Success. Logging in with:", currentEmail);
     res.json({
       success: true,
-      dummy_email: dummyEmail,
+      dummy_email: currentEmail, // Return actual email (real or dummy)
       temp_password: tempPassword
     });
 
