@@ -15,7 +15,7 @@ const COMPANY_KEY = "aa7a9325f1a0";
 const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
 const FLOW_KEY = "ad62cb968983"; 
 
-// ✅ OFFICIAL PRODUCTION BASE URL
+// ✅ OFFICIAL PRODUCTION BASE URL 
 const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
 
 // ✅ SHOPIFY CONFIGURATION (Added)
