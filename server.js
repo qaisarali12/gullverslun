@@ -115,7 +115,7 @@ app.post("/api/check-auth-status", async (req, res) => {
     //     "waitingForUserInput": false
     //   };
 
-    console.log("📡 Taktikal Poll Response:", JSON.stringify(response.data, null, 2));
+    console.log("📡 Taktikal Poll Response here:", JSON.stringify(response.data, null, 2));
     // console.log("📡 Taktikal Poll Response:", JSON.stringify(dummy, null, 2));
     res.json(response.data);
 
