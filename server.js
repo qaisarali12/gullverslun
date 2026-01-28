@@ -87,37 +87,37 @@ app.post("/api/goldMarket-login-ver", async (req, res) => {
 // =========================================================
 app.post("/api/check-auth-status", async (req, res) => {
   try {
-    // const { authRequestId } = req.body;
+    const { authRequestId } = req.body;
 
-    // const response = await axios.post(
-    //   `${TAKTIKAL_BASE_URL}/api/auth/poll`,
-    //   {
-    //     authRequestId: authRequestId,
-    //     flowKey: FLOW_KEY,
-    //     lookupType: "PhoneNumber"
-    //   },
-    //   {
-    //     httpsAgent: taktikalAgent,
-    //     auth: { username: COMPANY_KEY, password: API_KEY }
-    //   }
-    // );
+    const response = await axios.post(
+      `${TAKTIKAL_BASE_URL}/api/auth/poll`,
+      {
+        authRequestId: authRequestId,
+        flowKey: FLOW_KEY,
+        lookupType: "PhoneNumber"
+      },
+      {
+        httpsAgent: taktikalAgent,
+        auth: { username: COMPANY_KEY, password: API_KEY }
+      }
+    );
 
-    const dummy = {
-        "customer": {
-          "name": "Sigurður Þór Þórðarson",
-          "ssn": "2907962109",
-          "phoneNumber": "+3548579293",
-          "token": "87e2acbf363145d09768",
-          "flowKey": "ad62cb968983",
-          "meta": {}
-        },
-        "statusMessage": "Ok",
-        "waitingForUserInput": false
-      };
+    // const dummy = {
+    //     "customer": {
+    //       "name": "Sigurður Þór Þórðarson",
+    //       "ssn": "2907962109",
+    //       "phoneNumber": "+3548579293",
+    //       "token": "87e2acbf363145d09768",
+    //       "flowKey": "ad62cb968983",
+    //       "meta": {}
+    //     },
+    //     "statusMessage": "Ok",
+    //     "waitingForUserInput": false
+    //   };
 
-    // console.log("📡 Taktikal Poll Response:", JSON.stringify(response.data, null, 2));
-    console.log("📡 Taktikal Poll Response:", JSON.stringify(dummy, null, 2));
-    res.json(dummy);
+    console.log("📡 Taktikal Poll Response:", JSON.stringify(response.data, null, 2));
+    // console.log("📡 Taktikal Poll Response:", JSON.stringify(dummy, null, 2));
+    res.json(response.data);
 
   } catch (error) {
     console.error("❌ Polling Error:", error.message);
