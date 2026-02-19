@@ -330,6 +330,61 @@ app.post("/api/updateEmail", async (req, res) => {
 });
 
 // =========================================================
+// 7. CREATE DRAFT ORDER ROUTE
+// =========================================================
+app.post("/api/create-draft-order", async (req, res) => {
+  try {
+    const { items, customer_id } = req.body;
+    console.log("📦 Creating Draft Order for Customer:", customer_id);
+
+    // Map frontend cart items to Shopify Admin API format
+    const line_items = items.map(item => ({
+      variant_id: item.variant_id,
+      quantity: item.quantity
+    }));
+
+    const draftOrderPayload = {
+      draft_order: {
+        line_items: line_items,
+        customer: {
+          id: customer_id
+        },
+        use_customer_default_address: true
+      }
+    };
+
+    const shopifyConfig = {
+      headers: {
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+        "Content-Type": "application/json"
+      }
+    };
+
+    // Call Shopify Admin API
+    const response = await axios.post(
+      `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/draft_orders.json`,
+      draftOrderPayload,
+      shopifyConfig
+    );
+
+    console.log("✅ Draft Order Created:", response.data.draft_order.id);
+
+    // Send back the invoice_url so the frontend can redirect the user to pay
+    res.json({
+      success: true,
+      invoice_url: response.data.draft_order.invoice_url
+    });
+
+  } catch (error) {
+    console.error("❌ Draft Order Error:", error.response?.data || error.message);
+    res.status(500).json({ 
+      error: "Failed to create draft order", 
+      details: error.response?.data 
+    });
+  }
+});
+
+// =========================================================
 // 4. START SERVER
 // =========================================================
 const PORT = process.env.PORT || 10000;
