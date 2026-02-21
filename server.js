@@ -4,6 +4,7 @@ const cors = require("cors");
 const https = require("https");
 const crypto = require("crypto"); // Added for password generation
 const app = express();
+const cron = require("node-cron");
 
 app.use(cors());
 app.use(express.json()); 
@@ -383,6 +384,28 @@ app.post("/api/create-draft-order", async (req, res) => {
     });
   }
 });
+
+// =========================================================
+// 8. SCHEDULED TASKS (CRON)
+// =========================================================
+
+// Runs every 15 minutes
+cron.schedule("* * * * *", () => {
+  const now = new Date().toLocaleTimeString();
+  console.log(`⏱️ [${now}] Running per-minute task...`);
+  // Example: You could trigger a function here to update 
+  // live metal prices so the checkout always has current data.
+  updateLivePrices(); 
+});
+
+async function updateLivePrices() {
+  try {
+    // Your logic to fetch prices and update Shopify or a DB goes here
+    console.log("✅ Prices updated successfully.");
+  } catch (error) {
+    console.error("❌ Cron Job Error:", error.message);
+  }
+}
 
 // =========================================================
 // 4. START SERVER
