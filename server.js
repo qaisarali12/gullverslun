@@ -389,25 +389,28 @@ app.post("/api/create-draft-order", async (req, res) => {
 // 8. SCHEDULED TASKS (CRON)
 // =========================================================
 
-// Runs every 15 minutes
-// cron.schedule("*/15 * * * *", () => {
-// Runs every 1 minute
-cron.schedule("* * * * *", () => {
-  const now = new Date().toLocaleTimeString();
-  console.log(`⏱️ [${now}] Running per-minute task...`);
-  // Example: You could trigger a function here to update 
-  // live metal prices so the checkout always has current data.
-  updateLivePrices(); 
-});
-
-async function updateLivePrices() {
-  try {
-    // Your logic to fetch prices and update Shopify or a DB goes here
-    console.log("✅ Prices updated successfully.");
-  } catch (error) {
-    console.error("❌ Cron Job Error:", error.message);
-  }
+function getNextCronTime() {
+  const now = new Date();
+  const minutes = now.getMinutes();
+  const nextMark = Math.ceil((minutes + 1) / 15) * 15;
+  
+  const nextRun = new Date(now);
+  nextRun.setMinutes(nextMark, 0, 0); // Sets to the next 00, 15, 30, or 45
+  
+  // If it's the end of the hour, setMinutes(60) correctly rolls over to the next hour
+  return nextRun;
 }
+
+// --- Updated API Endpoint ---
+app.get("/api/get-cron-time", (req, res) => {
+  const nextRun = getNextCronTime();
+  
+  res.json({
+    success: true,
+    next_run: nextRun.toISOString(),
+    server_time: new Date().toISOString()
+  });
+});
 
 // =========================================================
 // 4. START SERVER
