@@ -389,26 +389,33 @@ app.post("/api/create-draft-order", async (req, res) => {
 // 8. SCHEDULED TASKS (CRON)
 // =========================================================
 
-function getNextCronTime() {
+cron.schedule("*/2 * * * *", () => {
+  console.log("🛠️ Background Task: Updating Gold Prices...");
+  // yourUpdateFunction();
+});
+
+// 2. THE CALCULATION (Helper for the API)
+function getCronStatus() {
   const now = new Date();
   const minutes = now.getMinutes();
-  const nextMark = Math.ceil((minutes + 1) / 2) * 2;
   
+  // Finds the next even minute
+  const nextMark = Math.ceil((minutes + 0.1) / 2) * 2;
   const nextRun = new Date(now);
-  nextRun.setMinutes(nextMark, 0, 0); // Sets to the next 00, 15, 30, or 45
-  console.log("nextRun: ", nextRun);
-  // If it's the end of the hour, setMinutes(60) correctly rolls over to the next hour
-  return nextRun;
+  nextRun.setMinutes(nextMark, 0, 0);
+
+  const remainingSeconds = Math.max(0, Math.floor((nextRun - now) / 1000));
+
+  return { nextRun, remainingSeconds };
 }
 
-// --- Updated API Endpoint ---
+// 3. THE API (Runs only when called by your Shopify store)
 app.get("/api/get-cron-time", (req, res) => {
-  const nextRun = getNextCronTime();
-  
+  const status = getCronStatus();
   res.json({
     success: true,
-    next_run: nextRun.toISOString(),
-    server_time: new Date().toISOString()
+    timer_seconds: status.remainingSeconds,
+    next_run: status.nextRun
   });
 });
 
