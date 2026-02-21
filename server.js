@@ -396,7 +396,7 @@ function getNextCronTime() {
   
   const nextRun = new Date(now);
   nextRun.setMinutes(nextMark, 0, 0); // Sets to the next 00, 15, 30, or 45
-  
+  console.log("nextRun: ", nextRun);
   // If it's the end of the hour, setMinutes(60) correctly rolls over to the next hour
   return nextRun;
 }
