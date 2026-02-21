@@ -390,6 +390,8 @@ app.post("/api/create-draft-order", async (req, res) => {
 // =========================================================
 
 // Runs every 15 minutes
+// cron.schedule("*/15 * * * *", () => {
+// Runs every 1 minute
 cron.schedule("* * * * *", () => {
   const now = new Date().toLocaleTimeString();
   console.log(`⏱️ [${now}] Running per-minute task...`);
