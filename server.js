@@ -389,10 +389,10 @@ app.post("/api/create-draft-order", async (req, res) => {
 // 8. SCHEDULED TASKS (CRON)
 // =========================================================
 
-cron.schedule("*/2 * * * *", () => {
-  console.log("🛠️ Background Task: Updating Gold Prices...");
-  // yourUpdateFunction();
-});
+// cron.schedule("*/2 * * * *", () => {
+//   console.log("🛠️ Background Task: Updating Gold Prices...");
+//   // yourUpdateFunction();
+// });
 
 // 2. THE CALCULATION (Helper for the API)
 function getCronStatus() {
