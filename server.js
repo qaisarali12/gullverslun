@@ -392,7 +392,7 @@ app.post("/api/create-draft-order", async (req, res) => {
 function getNextCronTime() {
   const now = new Date();
   const minutes = now.getMinutes();
-  const nextMark = Math.ceil((minutes + 1) / 15) * 15;
+  const nextMark = Math.ceil((minutes + 1) / 2) * 2;
   
   const nextRun = new Date(now);
   nextRun.setMinutes(nextMark, 0, 0); // Sets to the next 00, 15, 30, or 45
