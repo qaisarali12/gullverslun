@@ -389,10 +389,131 @@ app.post("/api/create-draft-order", async (req, res) => {
 // 8. SCHEDULED TASKS (CRON)
 // =========================================================
 
-// cron.schedule("*/2 * * * *", () => {
-//   console.log("🛠️ Background Task: Updating Gold Prices...");
-//   // yourUpdateFunction();
-// });
+const METALS_API_KEY = "YPQOUOVXJOWLVH9SKMTO2899SKMTO";
+const VAT_RATE = 1.24; // 24% VAT in Iceland
+const API_URL = `https://gold-market-1.onrender.com`; // Your Render URL
+
+// =========================================================
+// 1. FETCH THE FIRST 250 PRODUCTS
+// =========================================================
+async function fetchProductsToUpdate() {
+  const query = `
+    query {
+      products(first: 250) {
+        nodes {
+          id
+          title
+          variants(first: 20) {
+            nodes {
+              id
+              price
+              compareAtPrice
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await axios.post(API_URL, { query }, { headers });
+    return response.data.data.products.nodes;
+  } catch (error) {
+    console.error("❌ Error fetching products:", error.message);
+    return [];
+  }
+}
+
+// =========================================================
+// 2. FETCH LIVE MARKET DATA (Gold Spot & EUR/ISK)
+// =========================================================
+async function getLiveMarketData() {
+  try {
+    // We request EUR as base currency and Grams as the unit
+    const response = await axios.get(`https://api.metals.dev/v1/latest`, {
+      params: {
+        api_key: METALS_API_KEY,
+        currency: "EUR",
+        unit: "g" // Using grams (change to 'toz' for troy ounce if needed)
+      }
+    });
+
+    if (response.data.status === "success") {
+      return {
+        spotEUR: response.data.metals.gold,      // Spot price in EUR
+        exchangeRate: response.data.currencies.ISK // EUR to ISK Card Rate
+      };
+    }
+    throw new Error("API Status Failure");
+  } catch (error) {
+    console.error("❌ Market Data Error:", error.message);
+    // Fallbacks if API is down (Using your provided example values)
+    return { spotEUR: 144.00, exchangeRate: 151.69 }; 
+  }
+}
+
+// =========================================================
+// 3. MASTER UPDATE FUNCTION (The 15-Minute Sync)
+// =========================================================
+async function processAllGoldPrices() {
+  console.log(`\n🚀 Update Started: ${new Date().toLocaleString()}`);
+
+  const marketData = await getLiveMarketData();
+  const products = await fetchProductsToUpdate(); // Pulls the first 250 products
+
+  console.log(`📊 Market: Gold €${marketData.spotEUR} | EUR/ISK: ${marketData.exchangeRate}`);
+
+  for (const product of products) {
+    // 1. Get the Premium for this specific product
+    // We check for a metafield called 'premium'. Default to 12% (0.12) if missing.
+    const premiumValue = product.premium?.value || "0.12";
+    const premium = parseFloat(premiumValue);
+
+    const variantsInput = product.variants.nodes.map(variant => {
+      
+      // THE FORMULA: SPOT × (1 + PREMIUM) × 1.24 (VAT) × EXCHANGE RATE
+      const sellingPriceISK = marketData.spotEUR * (1 + premium) * VAT_RATE * marketData.exchangeRate;
+
+      return {
+        id: variant.id,
+        price: Math.round(sellingPriceISK).toString() // Rounding to nearest ISK
+      };
+    });
+
+    // 2. Push Bulk Update to Shopify
+    try {
+      await axios.post(
+        `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/graphql.json`,
+        {
+          query: `mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+              userErrors { field message }
+            }
+          }`,
+          variables: {
+            productId: product.id,
+            variants: variantsInput
+          }
+        },
+        { headers: { "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN } }
+      );
+      console.log(`✅ Updated: ${product.title} (Premium: ${premium * 100}%)`);
+    } catch (err) {
+      console.error(`❌ Update Failed for ${product.title}`);
+    }
+
+    // 3. Throttle (0.5s) to prevent Shopify Rate Limiting
+    await new Promise(res => setTimeout(res, 500));
+  }
+  console.log("🏁 Update Cycle Complete.");
+}
+
+// =========================================================
+// 4. THE CRON SCHEDULE
+// =========================================================
+cron.schedule("*/15 * * * *", () => {
+  processAllGoldPrices();
+});
 
 // 2. THE CALCULATION (Helper for the API)
 function getCronStatus() {
