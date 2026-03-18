@@ -525,9 +525,9 @@ async function processAllGoldPrices() {
 // =========================================================
 // 4. THE CRON SCHEDULE
 // =========================================================
-cron.schedule("*/1 * * * *", () => {
+// cron.schedule("*/1 * * * *", () => {
   processAllGoldPrices();
-});
+// });
 
 // 2. THE CALCULATION (Helper for the API)
 function getCronStatus() {
