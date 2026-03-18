@@ -483,8 +483,10 @@ async function processAllGoldPrices() {
   const products = await fetchProductsToUpdate(); // Pulls the first 250 products
 
   console.log(`📊 Market: Gold €${marketData.spotEUR} | EUR/ISK: ${marketData.exchangeRate}`);
+  console.log("products: ", products);
 
   for (const product of products) {
+  console.log("product: ", product);
     // 1. Get the Premium for this specific product
     // We check for a metafield called 'premium'. Default to 12% (0.12) if missing.
     const rawPremium = product.premium_meta?.value || "12";
