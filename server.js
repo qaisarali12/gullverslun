@@ -16,6 +16,14 @@ const COMPANY_KEY = "aa7a9325f1a0";
 const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
 const FLOW_KEY = "ad62cb968983"; 
 
+// ✅ OFFICIAL PRODUCTION BASE URL 
+const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
+
+// ✅ SHOPIFY CONFIGURATION (Added)
+const SHOPIFY_DOMAIN = "gullmarkadurinn.myshopify.com";
+const SHOPIFY_ACCESS_TOKEN = "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"; // Admin API Token
+
+
 const shopifyHeaders = {
   "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
   "Content-Type": "application/json"
@@ -23,13 +31,6 @@ const shopifyHeaders = {
 
 // Also, define the GraphQL URL once to avoid repetition
 const GRAPHQL_URL = `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/graphql.json`;
-
-// ✅ OFFICIAL PRODUCTION BASE URL 
-const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
-
-// ✅ SHOPIFY CONFIGURATION (Added)
-const SHOPIFY_DOMAIN = "gullmarkadurinn.myshopify.com";
-const SHOPIFY_ACCESS_TOKEN = "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"; // Admin API Token
 
 // =========================================================
 // 1.1 SHARED SSL AGENT (FIXES SSL ERROR 80)
@@ -439,26 +440,29 @@ async function fetchProductsToUpdate() {
 // =========================================================
 async function getLiveMarketData() {
   try {
-    // We request EUR as base currency and Grams as the unit
     const response = await axios.get(`https://api.metals.dev/v1/latest`, {
       params: {
         api_key: METALS_API_KEY,
-        currency: "EUR",
-        unit: "g" // Using grams (change to 'toz' for troy ounce if needed)
+        currency: "EUR"
+        // Removed unit: "g" to avoid 400 error on Free/Basic plans
       }
     });
 
     if (response.data.status === "success") {
+      // 1 Troy Ounce = 31.1034768 grams
+      const pricePerToz = response.data.metals.gold;
+      const pricePerGram = pricePerToz / 31.1034768;
+
       return {
-        spotEUR: response.data.metals.gold,      // Spot price in EUR
-        exchangeRate: response.data.currencies.ISK // EUR to ISK Card Rate
+        spotEUR: pricePerGram, // Now correctly returns Price per Gram
+        exchangeRate: response.data.currencies.ISK
       };
     }
-    throw new Error("API Status Failure");
+    throw new Error(response.data.error_message || "API Status Failure");
   } catch (error) {
-    console.error("❌ Market Data Error:", error.message);
-    // Fallbacks if API is down (Using your provided example values)
-    return { spotEUR: 144.00, exchangeRate: 151.69 }; 
+    console.error("❌ Market Data Error:", error.response?.data || error.message);
+    // Fallback values
+    return { spotEUR: 74.50, exchangeRate: 151.69 }; 
   }
 }
 
