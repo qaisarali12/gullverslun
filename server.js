@@ -494,18 +494,38 @@ async function processAllGoldPrices() {
   const premium = parseFloat(rawPremium) / 100; 
 
   const variantsInput = product.variants.nodes.map(variant => {
-    // Extract weight from title (e.g., "8gr" -> 8)
-    console.log(variant);
-    console.log(variant.title, parseFloat(variant.title));
-    const weight = parseFloat(variant.title) || 1; 
+    
+    // 1. Check if it's a "No Variant" product. If so, read the Product Title instead.
+    const titleToParse = variant.title === "Default Title" ? product.title : variant.title;
+    const lowerTitle = titleToParse.toLowerCase();
+
+    // 2. Handle Fractions (like "1/10") or standard numbers (like "30gr")
+    let extractedNumber = 1;
+    const fractionMatch = titleToParse.match(/(\d+)\/(\d+)/);
+    
+    if (fractionMatch) {
+      // If it sees "1/10", it divides 1 by 10 = 0.1
+      extractedNumber = parseInt(fractionMatch[1]) / parseInt(fractionMatch[2]);
+    } else {
+      // Normal parse for "8gr" or "1 oz"
+      extractedNumber = parseFloat(titleToParse) || 1; 
+    }
+
+    // 3. Convert Troy Ounces to Grams if the title mentions "oz" or "ounce"
+    let weightInGrams = extractedNumber;
+    if (lowerTitle.includes('oz') || lowerTitle.includes('ounce')) {
+      weightInGrams = extractedNumber * 31.1034768;
+    }
+
+    // 4. Calculate Price
     const trueExchangeRateISK = 1 / marketData.exchangeRate;
-    // THE CORRECT FORMULA: 
-    // (Spot Price per Gram) × (Weight in Grams) × (1 + Premium %) × 1.24 (VAT) × Exchange Rate
-    const sellingPriceISK = marketData.spotEUR * weight * (1 + premium) * VAT_RATE * trueExchangeRateISK;
+    
+    // THE FORMULA: Spot * Grams * Premium * VAT * Rate
+    const sellingPriceISK = marketData.spotEUR * weightInGrams * (1 + premium) * VAT_RATE * trueExchangeRateISK;
 
     const finalPrice = Math.round(sellingPriceISK).toString();
     
-    console.log(`🔹 Calculating ${variant.title}: €${marketData.spotEUR.toFixed(2)} * ${weight}g * ${1+premium} * ${VAT_RATE} * ${marketData.exchangeRate} = ${finalPrice} ISK`);
+    console.log(`🔹 Calc [${titleToParse}]: €${marketData.spotEUR.toFixed(2)} * ${weightInGrams.toFixed(3)}g * ${1+premium} * ${VAT_RATE} * ${trueExchangeRateISK.toFixed(2)} = ${finalPrice} kr`);
 
     return {
       id: variant.id,
