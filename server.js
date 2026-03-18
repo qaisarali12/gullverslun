@@ -487,18 +487,26 @@ async function processAllGoldPrices() {
   for (const product of products) {
     // 1. Get the Premium for this specific product
     // We check for a metafield called 'premium'. Default to 12% (0.12) if missing.
-    const rawPremium = product.premium_meta?.value || "0.12";
-    const premium = parseFloat(rawPremium);
+    const rawPremium = product.premium_meta?.value || "12";
+  const premium = parseFloat(rawPremium) / 100; 
 
-    const variantsInput = product.variants.nodes.map(variant => {
-      // FORMULA: SPOT × (1 + PREMIUM) × 1.24 × EXCHANGE_RATE
-      const sellingPriceISK = marketData.spotEUR * (1 + premium) * VAT_RATE * marketData.exchangeRate;
+  const variantsInput = product.variants.nodes.map(variant => {
+    // Extract weight from title (e.g., "8gr" -> 8)
+    const weight = parseFloat(variant.title) || 1; 
 
-      return {
-        id: variant.id,
-        price: Math.round(sellingPriceISK).toString()
-      };
-    });
+    // THE CORRECT FORMULA: 
+    // (Spot Price per Gram) × (Weight in Grams) × (1 + Premium %) × 1.24 (VAT) × Exchange Rate
+    const sellingPriceISK = marketData.spotEUR * weight * (1 + premium) * VAT_RATE * marketData.exchangeRate;
+
+    const finalPrice = Math.round(sellingPriceISK).toString();
+    
+    console.log(`🔹 Calculating ${variant.title}: €${marketData.spotEUR.toFixed(2)} * ${weight}g * ${1+premium} * ${VAT_RATE} * ${marketData.exchangeRate} = ${finalPrice} ISK`);
+
+    return {
+      id: variant.id,
+      price: finalPrice
+    };
+  });
 
     // 2. Push Bulk Update to Shopify
     try {
