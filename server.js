@@ -22,7 +22,7 @@ const shopifyHeaders = {
 };
 
 // Also, define the GraphQL URL once to avoid repetition
-const GRAPHQL_URL = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/graphql.json`;
+const GRAPHQL_URL = `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/graphql.json`;
 
 // ✅ OFFICIAL PRODUCTION BASE URL 
 const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
