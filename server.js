@@ -412,11 +412,14 @@ async function fetchProductsToUpdate() {
         nodes {
           id
           title
+          # Fetch the specific premium_rate metafield
+          premium_meta: metafield(namespace: "custom", key: "premium_rate") {
+            value
+          }
           variants(first: 20) {
             nodes {
               id
               price
-              compareAtPrice
             }
           }
         }
@@ -426,27 +429,15 @@ async function fetchProductsToUpdate() {
 
   try {
     const response = await axios.post(GRAPHQL_URL, { query }, { headers: shopifyHeaders });
-
-    // 1. Check for GraphQL errors (like wrong syntax or missing scopes)
+    
     if (response.data.errors) {
-      console.error("❌ Shopify GraphQL Error:", JSON.stringify(response.data.errors, null, 2));
+      console.error("❌ GraphQL Error:", response.data.errors);
       return [];
     }
-
-    // 2. Safely access the nodes
-    const products = response.data?.data?.products?.nodes || [];
     
-    if (products.length === 0) {
-      console.log("⚠️ No product found with title 'CHINA MINT PANDA'");
-    } else {
-      console.log("Fetched Products:", JSON.stringify(products, null, 2));
-    }
-
-    return products;
-
+    return response.data?.data?.products?.nodes || [];
   } catch (error) {
-    // 3. Check for Network or Authentication (401/403) errors
-    console.error("❌ Network Error fetching products:", error.response?.data || error.message);
+    console.error("❌ Fetch Error:", error.message);
     return [];
   }
 }
@@ -496,17 +487,16 @@ async function processAllGoldPrices() {
   for (const product of products) {
     // 1. Get the Premium for this specific product
     // We check for a metafield called 'premium'. Default to 12% (0.12) if missing.
-    const premiumValue = product.premium?.value || "0.12";
-    const premium = parseFloat(premiumValue);
+    const rawPremium = product.premium_meta?.value || "0.12";
+    const premium = parseFloat(rawPremium);
 
     const variantsInput = product.variants.nodes.map(variant => {
-      
-      // THE FORMULA: SPOT × (1 + PREMIUM) × 1.24 (VAT) × EXCHANGE RATE
+      // FORMULA: SPOT × (1 + PREMIUM) × 1.24 × EXCHANGE_RATE
       const sellingPriceISK = marketData.spotEUR * (1 + premium) * VAT_RATE * marketData.exchangeRate;
 
       return {
         id: variant.id,
-        price: Math.round(sellingPriceISK).toString() // Rounding to nearest ISK
+        price: Math.round(sellingPriceISK).toString()
       };
     });
 
