@@ -492,11 +492,12 @@ async function processAllGoldPrices() {
 
   const variantsInput = product.variants.nodes.map(variant => {
     // Extract weight from title (e.g., "8gr" -> 8)
+    console.log(variant.title, parseFloat(variant.title));
     const weight = parseFloat(variant.title) || 1; 
-
+    const trueExchangeRateISK = 1 / marketData.exchangeRate;
     // THE CORRECT FORMULA: 
     // (Spot Price per Gram) × (Weight in Grams) × (1 + Premium %) × 1.24 (VAT) × Exchange Rate
-    const sellingPriceISK = marketData.spotEUR * weight * (1 + premium) * VAT_RATE * marketData.exchangeRate;
+    const sellingPriceISK = marketData.spotEUR * weight * (1 + premium) * VAT_RATE * trueExchangeRateISK;
 
     const finalPrice = Math.round(sellingPriceISK).toString();
     
