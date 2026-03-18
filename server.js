@@ -425,12 +425,28 @@ async function fetchProductsToUpdate() {
   `;
 
   try {
-    // Fixed: Using GRAPHQL_URL and shopifyHeaders
     const response = await axios.post(GRAPHQL_URL, { query }, { headers: shopifyHeaders });
-    console.log("Fetched Products:", response.data.data.products.nodes);
-    return response.data.data.products.nodes;
+
+    // 1. Check for GraphQL errors (like wrong syntax or missing scopes)
+    if (response.data.errors) {
+      console.error("❌ Shopify GraphQL Error:", JSON.stringify(response.data.errors, null, 2));
+      return [];
+    }
+
+    // 2. Safely access the nodes
+    const products = response.data?.data?.products?.nodes || [];
+    
+    if (products.length === 0) {
+      console.log("⚠️ No product found with title 'CHINA MINT PANDA'");
+    } else {
+      console.log("Fetched Products:", JSON.stringify(products, null, 2));
+    }
+
+    return products;
+
   } catch (error) {
-    console.error("❌ Error fetching products:", error.response?.data || error.message);
+    // 3. Check for Network or Authentication (401/403) errors
+    console.error("❌ Network Error fetching products:", error.response?.data || error.message);
     return [];
   }
 }
