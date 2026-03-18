@@ -16,6 +16,14 @@ const COMPANY_KEY = "aa7a9325f1a0";
 const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
 const FLOW_KEY = "ad62cb968983"; 
 
+const shopifyHeaders = {
+  "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+  "Content-Type": "application/json"
+};
+
+// Also, define the GraphQL URL once to avoid repetition
+const GRAPHQL_URL = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/graphql.json`;
+
 // ✅ OFFICIAL PRODUCTION BASE URL 
 const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
 
