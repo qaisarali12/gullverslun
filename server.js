@@ -408,7 +408,7 @@ const API_URL = `https://gold-market-1.onrender.com`; // Your Render URL
 async function fetchProductsToUpdate() {
   const query = `
     query {
-      products(first: 1, query: "title:'CHINA MINT PANDA'") {
+      products(first: 250) {
         nodes {
           id
           title
