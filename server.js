@@ -512,7 +512,7 @@ async function processAllGoldPrices() {
 // =========================================================
 // 4. THE CRON SCHEDULE
 // =========================================================
-cron.schedule("*/15 * * * *", () => {
+cron.schedule("*/1 * * * *", () => {
   processAllGoldPrices();
 });
 
