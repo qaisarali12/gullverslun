@@ -424,11 +424,12 @@ async function fetchProductsToUpdate() {
   `;
 
   try {
-    const response = await axios.post(API_URL, { query }, { headers });
-    console.log("response.data.data.products.nodes: ", response.data.data.products.nodes);
+    // Fixed: Using GRAPHQL_URL and shopifyHeaders
+    const response = await axios.post(GRAPHQL_URL, { query }, { headers: shopifyHeaders });
+    console.log("Fetched Products:", response.data.data.products.nodes);
     return response.data.data.products.nodes;
   } catch (error) {
-    console.error("❌ Error fetching products:", error.message);
+    console.error("❌ Error fetching products:", error.response?.data || error.message);
     return [];
   }
 }
