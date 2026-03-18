@@ -494,6 +494,7 @@ async function processAllGoldPrices() {
 
   const variantsInput = product.variants.nodes.map(variant => {
     // Extract weight from title (e.g., "8gr" -> 8)
+    console.log(variant);
     console.log(variant.title, parseFloat(variant.title));
     const weight = parseFloat(variant.title) || 1; 
     const trueExchangeRateISK = 1 / marketData.exchangeRate;
