@@ -21,7 +21,7 @@ const TAKTIKAL_BASE_URL = "https://onboarding.taktikal.is";
 
 // ✅ SHOPIFY CONFIGURATION (Added)
 const SHOPIFY_DOMAIN = "gullmarkadurinn.myshopify.com";
-const SHOPIFY_ACCESS_TOKEN = "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"; // Admin API Token
+const SHOPIFY_ACCESS_TOKEN = "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"; // Admin API Token
 
 
 const shopifyHeaders = {
