@@ -475,68 +475,84 @@ async function getLiveMarketData() {
 }
 
 // =========================================================
+// HELPER: EXTRACT WEIGHT FROM TITLE
+// =========================================================
+function extractWeightInGrams(title) {
+  const lowerTitle = title.toLowerCase();
+
+  // 1. Check for fractions first (e.g., "1/10 oz", "1/4 gr")
+  const fractionMatch = lowerTitle.match(/(\d+)\/(\d+)\s*(oz|ounce|g|gr)/);
+  if (fractionMatch) {
+    const num = parseFloat(fractionMatch[1]);
+    const den = parseFloat(fractionMatch[2]);
+    const unit = fractionMatch[3];
+    let weight = num / den;
+    if (unit.startsWith('o')) weight *= 31.1034768; // Convert oz to grams
+    return weight;
+  }
+
+  // 2. Check for decimals or whole numbers (e.g., "20gr", "1 oz", "C. HAFNER - 30.5 g")
+  const decimalMatch = lowerTitle.match(/(\d+(?:\.\d+)?)\s*(oz|ounce|g|gr)/);
+  if (decimalMatch) {
+    let weight = parseFloat(decimalMatch[1]);
+    const unit = decimalMatch[2];
+    if (unit.startsWith('o')) weight *= 31.1034768; // Convert oz to grams
+    return weight;
+  }
+
+  // 3. Fallback: Just find the first number in the string if no unit is attached
+  const fallbackMatch = lowerTitle.match(/(\d+(?:\.\d+)?)/);
+  if (fallbackMatch) {
+    return parseFloat(fallbackMatch[1]);
+  }
+
+  return 1; // Absolute fallback if no number exists
+}
+
+// =========================================================
 // 3. MASTER UPDATE FUNCTION (The 15-Minute Sync)
 // =========================================================
 async function processAllGoldPrices() {
   console.log(`\n🚀 Update Started: ${new Date().toLocaleString()}`);
 
   const marketData = await getLiveMarketData();
-  const products = await fetchProductsToUpdate(); // Pulls the first 250 products
+  const products = await fetchProductsToUpdate(); 
 
-  console.log(`📊 Market: Gold €${marketData.spotEUR} | EUR/ISK: ${marketData.exchangeRate}`);
-  console.log("products: ", products);
+  // Smart Exchange Rate logic (handles both 0.0069 and 151.00 formats)
+  const trueExchangeRateISK = marketData.exchangeRate < 1 
+    ? (1 / marketData.exchangeRate) 
+    : marketData.exchangeRate;
+
+  console.log(`📊 Market: Gold €${marketData.spotEUR.toFixed(2)} | True EUR/ISK: ${trueExchangeRateISK.toFixed(2)}`);
 
   for (const product of products) {
-  console.log("product: ", product);
-    // 1. Get the Premium for this specific product
-    // We check for a metafield called 'premium'. Default to 12% (0.12) if missing.
+    // 1. Premium Metafield
     const rawPremium = product.premium_meta?.value || "12";
-  const premium = parseFloat(rawPremium) / 100; 
+    const premium = parseFloat(rawPremium) / 100; 
 
-  const variantsInput = product.variants.nodes.map(variant => {
-    
-    // 1. Check if it's a "No Variant" product. If so, read the Product Title instead.
-    const titleToParse = variant.title === "Default Title" ? product.title : variant.title;
-    const lowerTitle = titleToParse.toLowerCase();
+    const variantsInput = product.variants.nodes.map(variant => {
+      // 2. Decide which title to use (Product title if no variants exist)
+      const titleToParse = variant.title === "Default Title" ? product.title : variant.title;
+      
+      // 3. Extract the exact weight in grams using our new helper
+      const weightInGrams = extractWeightInGrams(titleToParse);
 
-    // 2. Handle Fractions (like "1/10") or standard numbers (like "30gr")
-    let extractedNumber = 1;
-    const fractionMatch = titleToParse.match(/(\d+)\/(\d+)/);
-    
-    if (fractionMatch) {
-      // If it sees "1/10", it divides 1 by 10 = 0.1
-      extractedNumber = parseInt(fractionMatch[1]) / parseInt(fractionMatch[2]);
-    } else {
-      // Normal parse for "8gr" or "1 oz"
-      extractedNumber = parseFloat(titleToParse) || 1; 
-    }
+      // 4. THE CORRECT FORMULA
+      const sellingPriceISK = marketData.spotEUR * weightInGrams * (1 + premium) * VAT_RATE * trueExchangeRateISK;
+      const finalPrice = Math.round(sellingPriceISK).toString();
+      
+      console.log(`🔹 Calc [${titleToParse}]: €${marketData.spotEUR.toFixed(2)} * ${weightInGrams.toFixed(3)}g * ${1+premium} * ${VAT_RATE} * ${trueExchangeRateISK.toFixed(2)} = ${finalPrice} kr`);
 
-    // 3. Convert Troy Ounces to Grams if the title mentions "oz" or "ounce"
-    let weightInGrams = extractedNumber;
-    if (lowerTitle.includes('oz') || lowerTitle.includes('ounce')) {
-      weightInGrams = extractedNumber * 31.1034768;
-    }
+      return {
+        id: variant.id,
+        price: finalPrice
+      };
+    });
 
-    // 4. Calculate Price
-    const trueExchangeRateISK = 1 / marketData.exchangeRate;
-    
-    // THE FORMULA: Spot * Grams * Premium * VAT * Rate
-    const sellingPriceISK = marketData.spotEUR * weightInGrams * (1 + premium) * VAT_RATE * trueExchangeRateISK;
-
-    const finalPrice = Math.round(sellingPriceISK).toString();
-    
-    console.log(`🔹 Calc [${titleToParse}]: €${marketData.spotEUR.toFixed(2)} * ${weightInGrams.toFixed(3)}g * ${1+premium} * ${VAT_RATE} * ${trueExchangeRateISK.toFixed(2)} = ${finalPrice} kr`);
-
-    return {
-      id: variant.id,
-      price: finalPrice
-    };
-  });
-
-    // 2. Push Bulk Update to Shopify
+    // 5. Push Bulk Update to Shopify
     try {
       await axios.post(
-        `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/graphql.json`,
+        GRAPHQL_URL, // <-- using your global variable here
         {
           query: `mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
             productVariantsBulkUpdate(productId: $productId, variants: $variants) {
@@ -548,14 +564,14 @@ async function processAllGoldPrices() {
             variants: variantsInput
           }
         },
-        { headers: { "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN } }
+        { headers: shopifyHeaders }
       );
       console.log(`✅ Updated: ${product.title} (Premium: ${premium * 100}%)`);
     } catch (err) {
       console.error(`❌ Update Failed for ${product.title}`);
     }
 
-    // 3. Throttle (0.5s) to prevent Shopify Rate Limiting
+    // 6. Throttle (0.5s) to prevent Shopify Rate Limiting
     await new Promise(res => setTimeout(res, 500));
   }
   console.log("🏁 Update Cycle Complete.");
