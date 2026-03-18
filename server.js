@@ -420,6 +420,7 @@ async function fetchProductsToUpdate() {
             nodes {
               id
               price
+              title
             }
           }
         }
