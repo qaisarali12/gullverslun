@@ -399,7 +399,7 @@ const API_URL = `https://gold-market-1.onrender.com`; // Your Render URL
 async function fetchProductsToUpdate() {
   const query = `
     query {
-      products(first: 250) {
+      products(first: 1) {
         nodes {
           id
           title
@@ -417,6 +417,7 @@ async function fetchProductsToUpdate() {
 
   try {
     const response = await axios.post(API_URL, { query }, { headers });
+    console.log("response.data.data.products.nodes: ", response.data.data.products.nodes);
     return response.data.data.products.nodes;
   } catch (error) {
     console.error("❌ Error fetching products:", error.message);
