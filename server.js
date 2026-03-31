@@ -616,3 +616,11 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+//TESTING
+app.get("/api/testing-id4all", (req, res) => {
+  console.log("Payload: ", req.body);
+  res.json({
+    success: true
+  });
+});
