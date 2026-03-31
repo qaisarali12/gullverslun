@@ -617,9 +617,27 @@ app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 }); 
 
+
 //TESTING
 app.post("/api/testing-id4all", (req, res) => {
-  console.log("Payload: ", req.body);
+  const topic = req.headers['x-shopify-topic'];
+  const shopDomain = req.headers['x-shopify-shop-domain'];
+  const secretKey = req.headers['x-graveergroep-secret'];
+
+  const payload = req.body;
+
+  console.log("=== Incoming Webhook from Shopify Flow ===");
+  console.log("Topic:", topic);
+  console.log("Shop:", shopDomain);
+  console.log("Secret Key:", secretKey);
+  console.log("Payload:", payload);
+  console.log("==========================================");
+
+  if (secretKey !== "Graveergroep_Secure_2026_!@#") {
+      console.log("🚨 Unauthorized Request Blocked!");
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+
   res.json({
     success: true
   });
