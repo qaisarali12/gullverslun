@@ -618,7 +618,7 @@ app.listen(PORT, () => {
 });
 
 //TESTING
-app.get("/api/testing-id4all", (req, res) => {
+app.post("/api/testing-id4all", (req, res) => {
   console.log("Payload: ", req.body);
   res.json({
     success: true
