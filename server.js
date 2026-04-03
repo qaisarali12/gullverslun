@@ -398,7 +398,7 @@ app.post("/api/create-draft-order", async (req, res) => {
 // 8. SCHEDULED TASKS (CRON)
 // =========================================================
 
-const METALS_API_KEY = "ADGYB0GWC5OMPIKH5MIG171KH5MIG";
+const METALS_API_KEY = "4DM5HNB1JIDMSVPITEDI278PITEDI";
 const VAT_RATE = 1.24; // 24% VAT in Iceland
 const API_URL = `https://gold-market-1.onrender.com`; // Your Render URL
 
