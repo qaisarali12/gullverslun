@@ -13,7 +13,7 @@ app.use(express.json());
 // 1. CONFIGURATION (Production)
 // =========================================================
 const COMPANY_KEY = "aa7a9325f1a0";  
-const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT"; 
+const API_KEY = "api-g2ndsPMuQvFmMcB0VRAkDQhdYYrT";
 const FLOW_KEY = "ad62cb968983"; 
 
 // ✅ OFFICIAL PRODUCTION BASE URL 
@@ -177,7 +177,7 @@ app.post("/api/createCustomer", async (req, res) => {
 
     // 3. SEARCH BY PHONE
     const query = `phone:${encodeURIComponent(formattedPhone)}`;
-    const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${query}`;
+    const searchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/customers/search.json?query=${query}`;
     const searchRes = await axios.get(searchUrl, shopifyConfig);
 
     let finalEmailToUse = defaultDummyEmail;
@@ -193,7 +193,7 @@ app.post("/api/createCustomer", async (req, res) => {
       if (ssn) {
           const ssnString = String(ssn);
           const tagQuery = `tag:${ssnString}`;
-          const tagSearchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/search.json?query=${tagQuery}`;
+          const tagSearchUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/customers/search.json?query=${tagQuery}`;
           
           const tagRes = await axios.get(tagSearchUrl, shopifyConfig);
           
@@ -230,7 +230,7 @@ app.post("/api/createCustomer", async (req, res) => {
 
       if (ssn) customerPayload.tags = String(ssn); 
 
-      const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers.json`, {
+      const createRes = await axios.post(`https://${SHOPIFY_DOMAIN}/admin/api/2026-01/customers.json`, {
         customer: customerPayload
       }, shopifyConfig);
 
@@ -259,7 +259,7 @@ app.post("/api/createCustomer", async (req, res) => {
           }
       }
 
-      await axios.put(`https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${customerId}.json`, {
+      await axios.put(`https://${SHOPIFY_DOMAIN}/admin/api/2026-01/customers/${customerId}.json`, {
         customer: {
           id: customerId,
           password: tempPassword,
@@ -308,7 +308,7 @@ app.post("/api/updateEmail", async (req, res) => {
     };
 
     // 2. UPDATE SHOPIFY (Email + Password)
-    const updateUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/customers/${shopifyCustomerId}.json`;
+    const updateUrl = `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/customers/${shopifyCustomerId}.json`;
 
     await axios.put(updateUrl, {
       customer: {
@@ -372,7 +372,7 @@ app.post("/api/create-draft-order", async (req, res) => {
 
     // Call Shopify Admin API
     const response = await axios.post(
-      `https://${SHOPIFY_DOMAIN}/admin/api/2024-01/draft_orders.json`,
+      `https://${SHOPIFY_DOMAIN}/admin/api/2026-01/draft_orders.json`,
       draftOrderPayload,
       shopifyConfig
     );
@@ -616,30 +616,4 @@ app.get("/api/get-cron-time", (req, res) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-}); 
-
-
-//TESTING
-app.post("/api/testing-id4all", (req, res) => {
-  const topic = req.headers['x-shopify-topic'];
-  const shopDomain = req.headers['x-shopify-shop-domain'];
-  const secretKey = req.headers['x-graveergroep-secret'];
-
-  const payload = req.body;
-
-  console.log("=== Incoming Webhook from Shopify Flow ===");
-  console.log("Topic:", topic);
-  console.log("Shop:", shopDomain);
-  console.log("Secret Key:", secretKey);
-  console.log("Payload:", payload);
-  console.log("==========================================");
-
-  if (secretKey !== "Graveergroep_Secure_2026_!@#") {
-      console.log("🚨 Unauthorized Request Blocked!");
-      return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
-
-  res.json({
-    success: true
-  });
 });
